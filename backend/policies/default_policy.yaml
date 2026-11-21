@@ -1,0 +1,30 @@
+version: 1
+defaults:
+  unknown_destination: REQUIRE_APPROVAL
+  evaluation_error: BLOCK
+approved_domains:
+  - example.org
+protected_values:
+  - name: demo_secret
+    value: DEMO_SECRET
+    action: BLOCK
+rules:
+  - id: block-secret-to-unapproved
+    description: Block protected data sent to an unapproved destination
+    tools:
+      - send_email
+      - http_post
+    data_labels:
+      - PROTECTED
+    destination_classes:
+      - UNAPPROVED
+      - UNKNOWN
+    decision: BLOCK
+  - id: approve-external-export
+    description: Require approval for external file exports
+    tools:
+      - export_file
+    destination_classes:
+      - UNAPPROVED
+      - UNKNOWN
+    decision: REQUIRE_APPROVAL
