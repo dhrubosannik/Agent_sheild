@@ -79,3 +79,7 @@ data/
 ## Security boundary
 
 Deterministic tool, destination, and protected-data checks are the primary enforcement mechanism. Prompt-injection detection is supplementary and imperfect. No tool should execute before the gateway decision.
+
+## Dashboard theme
+
+The dashboard includes a reference-style security console with light and dark themes, IBM Plex Mono and Inter typography, and live AgentShield event data.
