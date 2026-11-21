@@ -30,27 +30,33 @@ export default function Sidebar({ activePage, onNavigate, collapsed, onCollapse 
         {!collapsed && (
           <div>
             <strong>AgentShield</strong>
-            <span>Security Gateway</span>
+            <span>Security operations</span>
           </div>
         )}
       </div>
 
       <nav className="sidebar-nav" aria-label="Primary navigation">
-        {navigation.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            className={activePage === id ? "active" : ""}
-            onClick={() => onNavigate(id)}
-            title={collapsed ? label : undefined}
-          >
-            <Icon size={18} />
-            {!collapsed && <span>{label}</span>}
+        {!collapsed && <div className="nav-label">Monitor</div>}
+        {navigation.slice(0, 5).map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" className={activePage === id ? "active" : ""} onClick={() => onNavigate(id)} title={collapsed ? label : undefined}>
+            <Icon size={17} /><span>{!collapsed && label}</span>
+          </button>
+        ))}
+        {!collapsed && <div className="nav-label nav-label-secondary">Configure</div>}
+        {navigation.slice(5).map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" className={activePage === id ? "active" : ""} onClick={() => onNavigate(id)} title={collapsed ? label : undefined}>
+            <Icon size={17} /><span>{!collapsed && label}</span>
           </button>
         ))}
       </nav>
 
-      <button type="button" className="collapse-button" onClick={onCollapse}>
+      {!collapsed && (
+        <div className="sidebar-context">
+          <span>Workspace</span>
+          <strong>Local demo</strong>
+        </div>
+      )}
+      <button type="button" className="collapse-button" onClick={onCollapse} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
         <ChevronLeft size={16} className={collapsed ? "rotated" : ""} />
         {!collapsed && <span>Collapse</span>}
       </button>
