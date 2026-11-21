@@ -1,5 +1,10 @@
 """AgentShield security services package."""
 
+from .audit_logger import (
+    AuditLogger,
+    get_audit_logger,
+    reset_audit_logger_singleton,
+)
 from .destination_classifier import classify_destination
 from .injection_detector import detect_prompt_injection
 from .payload_normalizer import (
@@ -24,9 +29,12 @@ __all__ = [
     "detect_sensitive_data",
     "evaluate_policy",
     "evaluate_tool_call",
+    "get_audit_logger",
     "normalize_arguments",
     "normalize_value",
     "redact_arguments",
+    "reset_audit_logger_singleton",
+    "AuditLogger",
     "EvaluationDecision",
     "NormalizationError",
     "REDACTION_MARKER",

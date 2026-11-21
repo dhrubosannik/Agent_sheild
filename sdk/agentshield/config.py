@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from backend.app.models.audit_event import AuditEvent
 
@@ -16,9 +17,11 @@ class ShieldConfig:
         raise_on_approval: bool = False,
         return_execution_result: bool = False,
         audit_callback: Callable[[AuditEvent], None] | None = None,
+        enable_audit_log: bool = True,
     ) -> None:
         self.policy_path = policy_path
         self.raise_on_block = raise_on_block
         self.raise_on_approval = raise_on_approval
         self.return_execution_result = return_execution_result
         self.audit_callback = audit_callback
+        self.enable_audit_log = enable_audit_log
