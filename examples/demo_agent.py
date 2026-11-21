@@ -80,7 +80,10 @@ class DemoAgent:
             context={"source": "demo_agent", "untrusted_sources": ["synthetic_fixture"]},
         )
 
-    def run_approval(self) -> tuple[ToolExecutionResult, ToolExecutionResult]:
+    def run_approval(
+        self,
+        auto_review: bool = True,
+    ) -> tuple[ToolExecutionResult, ToolExecutionResult]:
         approved = self.tools.export_file(
             to="approved-review@example.net",
             filename="external_customer_export.csv",
@@ -92,18 +95,19 @@ class DemoAgent:
             context={"source": "demo_agent", "impact": "external_export"},
         )
 
-        if approved.approval_id and self.shield.audit_logger:
-            self.shield.audit_logger.review_approval(
-                approved.approval_id,
-                ApprovalStatus.APPROVED,
-                "demo-reviewer",
-            )
-        if rejected.approval_id and self.shield.audit_logger:
-            self.shield.audit_logger.review_approval(
-                rejected.approval_id,
-                ApprovalStatus.REJECTED,
-                "demo-reviewer",
-            )
+        if auto_review:
+            if approved.approval_id and self.shield.audit_logger:
+                self.shield.audit_logger.review_approval(
+                    approved.approval_id,
+                    ApprovalStatus.APPROVED,
+                    "demo-reviewer",
+                )
+            if rejected.approval_id and self.shield.audit_logger:
+                self.shield.audit_logger.review_approval(
+                    rejected.approval_id,
+                    ApprovalStatus.REJECTED,
+                    "demo-reviewer",
+                )
         return approved, rejected
 
 

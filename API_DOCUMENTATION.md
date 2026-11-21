@@ -216,7 +216,83 @@ Records a human decision (`APPROVED` or `REJECTED`) for a pending approval reque
 
 ---
 
-## 5. Local Development Commands
+## 5. Read-Only Policy Configuration
+
+### `GET /api/v1/policies/current`
+Returns the active, validated policy configuration. Protected canary values are not exposed.
+
+#### Response `200 OK`
+```json
+{
+  "version": 1,
+  "approved_domains": ["example.org"],
+  "protected_values": [
+    {
+      "name": "demo_secret",
+      "action": "BLOCK"
+    }
+  ],
+  "rules": [
+    {
+      "id": "block-secret-to-unapproved",
+      "description": "Block protected data sent to an unapproved destination",
+      "tools": ["send_email", "http_post"],
+      "data_labels": ["PROTECTED"],
+      "destination_classes": ["UNAPPROVED", "UNKNOWN"],
+      "decision": "BLOCK"
+    }
+  ]
+}
+```
+
+Policy editing is not supported in the MVP.
+
+---
+
+## 6. Offline Demo Scenarios
+
+### `POST /api/v1/demo/run/{scenario}`
+Runs a scenario through the existing AgentShield SDK, policy engine, mock tools, and audit logger.
+
+Supported scenario values:
+- `safe`
+- `malicious`
+- `redaction`
+- `approval`
+- `all`
+
+The response contains real SDK results and mock-tool execution counts. It does not expose raw protected canary values.
+
+#### Response `200 OK`
+```json
+{
+  "scenario": "malicious",
+  "results": [
+    {
+      "event_id": "evt-example",
+      "tool_name": "send_email",
+      "decision": "BLOCK",
+      "policy_id": "block-secret-to-unapproved",
+      "destination_class": "UNAPPROVED",
+      "execution_status": "NOT_EXECUTED"
+    }
+  ],
+  "tool_call_counts": {
+    "send_email": 0,
+    "generate_report": 0,
+    "export_file": 0
+  }
+}
+```
+
+#### Error Responses
+- `422 Unprocessable Entity`: Scenario name is outside the supported values.
+
+Approval demo runs leave pending records for the existing approval API. Reviewing a record does not execute a tool.
+
+---
+
+## 7. Local Development Commands
 
 ### Run Backend Server
 ```bash

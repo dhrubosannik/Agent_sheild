@@ -44,6 +44,17 @@ Health endpoint:
 http://127.0.0.1:8000/health
 ```
 
+## Run the complete application
+
+After backend dependencies and frontend packages are installed:
+
+```bash
+chmod +x scripts/start_agentshield.sh
+./scripts/start_agentshield.sh
+```
+
+The dashboard is available at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:8000`.
+
 ## Directory structure
 
 ```text
