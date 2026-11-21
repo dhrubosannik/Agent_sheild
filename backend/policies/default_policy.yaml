@@ -20,6 +20,16 @@ rules:
       - UNAPPROVED
       - UNKNOWN
     decision: BLOCK
+  - id: redact-protected-approved-send
+    description: Redact protected values before sending to an approved destination
+    tools:
+      - send_email
+    data_labels:
+      - PROTECTED
+    destination_classes:
+      - APPROVED
+      - INTERNAL
+    decision: REDACT
   - id: approve-external-export
     description: Require approval for external file exports
     tools:
