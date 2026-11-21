@@ -184,3 +184,53 @@ def test_approval_decision_not_found(client_with_test_db) -> None:
         json={"decision": "APPROVED", "reviewer": "admin"},
     )
     assert res.status_code == 404
+
+
+def test_current_policy_endpoint_has_no_secret_value(client_with_test_db) -> None:
+    client, _ = client_with_test_db
+    response = client.get("/api/v1/policies/current")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["version"] == 1
+    assert "example.org" in data["approved_domains"]
+    assert all("DEMO_SECRET" not in str(item) for item in data["protected_values"])
+
+
+@pytest.mark.parametrize(
+    "scenario,expected_decisions",
+    [
+        ("safe", ["ALLOW"]),
+        ("malicious", ["BLOCK"]),
+        ("redaction", ["REDACT"]),
+        ("approval", ["REQUIRE_APPROVAL", "REQUIRE_APPROVAL"]),
+    ],
+)
+def test_demo_endpoint_runs_real_scenarios(
+    client_with_test_db,
+    scenario: str,
+    expected_decisions: list[str],
+) -> None:
+    client, _ = client_with_test_db
+    response = client.post(f"/api/v1/demo/run/{scenario}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["decision"] for item in data["results"]] == expected_decisions
+    assert "DEMO_SECRET" not in str(data)
+
+
+def test_demo_approval_endpoint_creates_pending_records(client_with_test_db) -> None:
+    client, logger = client_with_test_db
+
+    response = client.post("/api/v1/demo/run/approval")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["results"]) == 2
+    assert all(item["decision"] == "REQUIRE_APPROVAL" for item in data["results"])
+    assert data["tool_call_counts"]["export_file"] == 0
+
+    approvals, total = logger.list_approvals(status=ApprovalStatus.PENDING)
+    assert total == 2
+    assert all(item.status == ApprovalStatus.PENDING for item in approvals)
