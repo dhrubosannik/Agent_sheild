@@ -15,4 +15,5 @@ node_modules/
 dist/
 build/
 *.tmp
+*.egg-info/
 .DS_Store
