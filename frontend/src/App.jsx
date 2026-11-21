@@ -25,6 +25,7 @@ const pageTitles = {
 };
 
 export default function App() {
+  const [theme, setTheme] = useState(() => localStorage.getItem("agentshield-theme") || "dark");
   const [activePage, setActivePage] = useState("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [events, setEvents] = useState([]);
@@ -64,6 +65,11 @@ export default function App() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("agentshield-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -131,7 +137,7 @@ export default function App() {
     <div className="app-shell">
       <Sidebar activePage={activePage} onNavigate={setActivePage} collapsed={collapsed} onCollapse={() => setCollapsed((value) => !value)} />
       <main className="main-area">
-        <Topbar title={pageTitles[activePage]} connected={connected} loading={loading} onRefresh={refresh} />
+        <Topbar title={pageTitles[activePage]} connected={connected} loading={loading} onRefresh={refresh} theme={theme} onToggleTheme={() => setTheme((current) => current === "light" ? "dark" : "light")} />
         {notice && <div className="toast">{notice}</div>}
         <div className="content">{page}</div>
       </main>

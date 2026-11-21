@@ -1,27 +1,28 @@
-import { RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 
-export default function Topbar({ title, connected, loading, onRefresh }) {
+export default function Topbar({ connected, loading, onRefresh, theme, onToggleTheme }) {
   return (
     <header className="topbar">
-      <div>
-        <p className="eyebrow">AgentShield Console</p>
-        <h1>{title}</h1>
+      <div className="topbar-brand">
+        <strong>AGENTSHTIELD</strong>
+        <span>// POLICY GATEWAY</span>
       </div>
-      <div className="topbar-actions">
-        <span className={`connection ${connected ? "online" : "offline"}`}>
-          {connected ? <Wifi size={14} /> : <WifiOff size={14} />}
-          {connected ? "Backend connected" : "Backend unavailable"}
-        </span>
-        <button type="button" className="icon-button" onClick={onRefresh} disabled={loading} title="Refresh data">
-          <RefreshCw size={16} className={loading ? "spinning" : ""} />
+      <div className="topbar-meta">
+        <span>ENV: PROD-SANDBOX</span>
+        <i />
+        <span>TRACK: CYBER / AI SECURITY</span>
+        <i />
+        <span>TEAM: HAXTHON</span>
+      </div>
+      <div className="topbar-controls">
+        <button type="button" className="theme-toggle" onClick={onToggleTheme} title={`Switch to ${theme === "light" ? "dark" : "light"} theme`}>
+          {theme === "light" ? <Moon size={12} /> : <Sun size={12} />}
+          <span>{theme === "light" ? "DARK" : "LIGHT"}</span>
         </button>
-        <div className="profile">
-          <div className="avatar">AS</div>
-          <div>
-            <strong>Demo Reviewer</strong>
-            <span>Security team</span>
-          </div>
-        </div>
+        <button type="button" className={`enforcement-status ${connected ? "online" : "offline"}`} onClick={onRefresh} disabled={loading}>
+          <b />
+          <span>{connected ? "ENFORCEMENT: ACTIVE" : "ENFORCEMENT: OFFLINE"}</span>
+        </button>
       </div>
     </header>
   );
