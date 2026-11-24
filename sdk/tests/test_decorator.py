@@ -30,7 +30,7 @@ def _build_test_policy() -> PolicyConfiguration:
             ProtectedValue(
                 name="demo_secret",
                 value="DEMO_SECRET",
-                action=SecurityDecision.BLOCK,
+                action=SecurityDecision.REDACT,
             )
         ],
         rules=[

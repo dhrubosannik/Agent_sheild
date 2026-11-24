@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: agentshield-api
+    runtime: python
+    plan: free
+    buildCommand: python -m pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_MODE
+        value: firestore
+      - key: FIREBASE_AUTH_REQUIRED
+        value: true
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

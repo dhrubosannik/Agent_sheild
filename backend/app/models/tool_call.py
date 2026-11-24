@@ -57,3 +57,17 @@ class ToolCall(BaseModel):
         if len(encoded.encode("utf-8")) > MAX_ARGUMENT_BYTES:
             raise ValueError("arguments exceed the maximum allowed size")
         return value
+
+    @field_validator("context")
+    @classmethod
+    def validate_context(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return value
+        _json_compatible(value)
+        try:
+            encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("context must be valid JSON") from exc
+        if len(encoded.encode("utf-8")) > MAX_ARGUMENT_BYTES:
+            raise ValueError("context exceeds the maximum allowed size")
+        return value

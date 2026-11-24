@@ -126,3 +126,15 @@ def test_multiple_policy_rules_are_loaded_correctly(tmp_path: Path) -> None:
     assert policy.rules[0].decision == SecurityDecision.BLOCK
     assert policy.rules[1].decision == SecurityDecision.REQUIRE_APPROVAL
     assert DestinationClass.UNAPPROVED in policy.rules[0].destination_classes
+
+
+def test_duplicate_rule_ids_are_rejected(tmp_path: Path) -> None:
+    invalid = VALID_POLICY.replace(
+        "id: approve-export",
+        "id: block-secret",
+        1,
+    )
+    policy_path = write_policy(tmp_path, invalid)
+
+    with pytest.raises(PolicyValidationError):
+        load_policy(policy_path)

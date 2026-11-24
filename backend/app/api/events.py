@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from ..models.audit_event import AuditEvent
 from ..models.enums import SecurityDecision
 from ..services.audit_logger import AuditLogger, get_audit_service
+from ..core.auth import AuthenticatedUser, UserRole, require_roles
 
 router = APIRouter(prefix="/api/v1/events", tags=["Audit Events"])
 
@@ -26,6 +27,7 @@ def list_audit_events(
     decision: SecurityDecision | None = Query(default=None),
     tool_name: str | None = Query(default=None),
     audit_logger: AuditLogger = Depends(get_audit_service),
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> EventListResponse:
     """Retrieves paginated audit events with optional filtering by decision or tool name."""
     items, total = audit_logger.list_events(
@@ -46,6 +48,7 @@ def list_audit_events(
 def get_audit_event(
     event_id: str,
     audit_logger: AuditLogger = Depends(get_audit_service),
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> AuditEvent:
     """Retrieves a single audit event by its unique ID. Returns 404 if not found."""
     event = audit_logger.get_event(event_id)

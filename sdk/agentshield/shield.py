@@ -62,9 +62,21 @@ class AgentShield:
             self.audit_logger = audit_logger
         elif enable_audit_log:
             try:
+                from backend.app.core.config import get_settings
                 from backend.app.services.audit_logger import get_audit_logger
 
-                self.audit_logger = get_audit_logger()
+                settings = get_settings()
+                if settings.database_mode.lower() == "firestore":
+                    from backend.app.services.audit_logger import AuditLogger
+                    from backend.app.storage.firestore_audit_repository import FirestoreAuditRepository
+                    from backend.app.storage.firestore_approval_repository import FirestoreApprovalRepository
+
+                    self.audit_logger = AuditLogger(
+                        audit_repo=FirestoreAuditRepository(),
+                        approval_repo=FirestoreApprovalRepository(),
+                    )
+                else:
+                    self.audit_logger = get_audit_logger()
             except Exception:
                 self.audit_logger = None
 

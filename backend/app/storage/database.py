@@ -74,6 +74,19 @@ class Database:
 
     def _init_schema(self, conn: sqlite3.Connection) -> None:
         conn.executescript(SCHEMA_SQL)
+        audit_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(audit_events)")
+        }
+        for name, definition in {
+            "sequence": "INTEGER",
+            "previous_event_hash": "TEXT",
+            "current_event_hash": "TEXT",
+            "actor_uid": "TEXT",
+        }.items():
+            if name not in audit_columns:
+                conn.execute(
+                    f"ALTER TABLE audit_events ADD COLUMN {name} {definition}"
+                )
         conn.commit()
 
     @contextmanager

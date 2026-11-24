@@ -90,3 +90,17 @@ def test_unsafe_redaction_non_dict_rejected() -> None:
 
     assert success is False
     assert sanitized is None
+
+
+def test_api_key_and_bearer_token_are_redacted() -> None:
+    original = {
+        "api_key": "sk-" + ("A" * 24),
+        "headers": {"Authorization": "Bearer abcDEF123._-"},
+    }
+
+    success, sanitized = redact_arguments(original)
+
+    assert success is True
+    assert sanitized is not None
+    assert sanitized["api_key"] == REDACTION_MARKER
+    assert sanitized["headers"]["Authorization"] == REDACTION_MARKER

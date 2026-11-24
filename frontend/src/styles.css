@@ -161,6 +161,44 @@ select { height: 32px; border: 1px solid #393934; border-radius: 5px; background
 .event-drawer section { border-bottom: 1px solid #292926; padding: 10px 5px 12px; }.event-drawer section h3 { font-size: 9px; }.tag-list { display: flex; flex-wrap: wrap; gap: 5px; }.tag-list code { border: 1px solid #393934; border-radius: 4px; padding: 4px 6px; background: #222220; font-size: 8px; }.risk-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }.risk-row span, .muted { color: #777770; font-size: 8px; }
 .spinning { animation: spin .8s linear infinite; }@keyframes spin { to { transform: rotate(360deg); } }
 
+.auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #131312;
+  color: #e5e4df;
+  padding: 24px;
+}
+.auth-card {
+  width: min(380px, 100%);
+  border: 1px solid #252523;
+  background: #141312;
+  padding: 18px;
+}
+.auth-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 22px;
+  font-family: "IBM Plex Mono", monospace;
+}
+.auth-brand strong { font-size: 12px; }
+.auth-brand span { color: #9f9e98; font-size: 9px; }
+.auth-card h1 { margin: 0 0 16px; font-size: 18px; }
+.auth-card form { display: flex; flex-direction: column; gap: 10px; }
+.auth-card label { display: flex; flex-direction: column; gap: 6px; color: #a09f99; font-size: 10px; }
+.auth-card input {
+  height: 38px;
+  border: 1px solid #252523;
+  border-radius: 3px;
+  background: #131312;
+  color: #e5e4df;
+  padding: 0 10px;
+}
+.auth-message { margin: 2px 0; color: #d3d2cc; font-size: 10px; }
+.auth-links { display: flex; gap: 10px; margin-top: 12px; }
+.auth-links button { border: 0; background: transparent; color: #a09f99; padding: 0; font-size: 10px; cursor: pointer; }
+
 @media (max-width: 1100px) {
   .stat-grid { grid-template-columns: repeat(5, minmax(132px, 1fr)); overflow-x: auto; }
   .stat-card { border-right: 1px solid #2d2d29; }
@@ -267,6 +305,9 @@ select { height: 32px; border: 1px solid #393934; border-radius: 5px; background
 
 .demo-list { padding: 7px 8px 8px; }
 .demo-row { min-height: 54px; margin-bottom: 6px; border: 1px solid var(--ref-line); background: #141312; display: flex; align-items: center; justify-content: space-between; padding: 7px 8px; }
+.demo-row { width: 100%; color: inherit; text-align: left; cursor: pointer; }
+.demo-row:hover { border-color: #6a6a62; background: #191916; }
+.demo-row:disabled { cursor: wait; opacity: .72; }
 .demo-row:last-child { margin-bottom: 0; }
 .demo-row div { min-width: 0; }
 .demo-row span { display: block; color: #777770; font: 700 7px/1 "SFMono-Regular", Consolas, monospace; margin-bottom: 5px; }

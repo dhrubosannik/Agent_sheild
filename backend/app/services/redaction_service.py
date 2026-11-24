@@ -1,11 +1,22 @@
 """Redaction service for sanitizing sensitive tool-call arguments."""
 
 import copy
+import re
 from typing import Any
 
 from ..core.policy_models import PolicyConfiguration, ProtectedValue
 
 REDACTION_MARKER = "[REDACTED]"
+
+API_KEY_PATTERN = re.compile(
+    r"\b(?:sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|"
+    r"AKIA[0-9A-Z]{16}|AIza[A-Za-z0-9-_]{35}|key-[A-Za-z0-9]{24,})\b"
+)
+BEARER_PATTERN = re.compile(
+    r"(?<!\S)(?:Bearer[ \t]+[A-Za-z0-9._~+/=-]+|"
+    r"eyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_.+/=]+)",
+    re.IGNORECASE,
+)
 
 
 def _redact_string(text: str, protected_values: list[ProtectedValue]) -> str:
@@ -13,6 +24,8 @@ def _redact_string(text: str, protected_values: list[ProtectedValue]) -> str:
     for pv in protected_values:
         if pv.value and pv.value in redacted:
             redacted = redacted.replace(pv.value, REDACTION_MARKER)
+    redacted = API_KEY_PATTERN.sub(REDACTION_MARKER, redacted)
+    redacted = BEARER_PATTERN.sub(REDACTION_MARKER, redacted)
     return redacted
 
 
@@ -58,7 +71,9 @@ def redact_arguments(
         # Verify that no protected secret remains in the sanitized output
         def _contains_secret(val: Any) -> bool:
             if isinstance(val, str):
-                return any(pv.value and pv.value in val for pv in protected_values)
+                if any(pv.value and pv.value in val for pv in protected_values):
+                    return True
+                return bool(API_KEY_PATTERN.search(val) or BEARER_PATTERN.search(val))
             if isinstance(val, dict):
                 return any(
                     _contains_secret(k) or _contains_secret(v)

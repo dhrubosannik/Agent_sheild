@@ -9,6 +9,9 @@ __pycache__/
 .coverage
 htmlcov/
 .env
+*service-account*.json
+*-credentials*.json
+*signing-key*.pem
 *.log
 logs/
 node_modules/

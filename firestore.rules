@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() && request.auth.token.role != null
+        ? request.auth.token.role
+        : "VIEWER";
+    }
+
+    function isAdmin() {
+      return role() == "ADMIN";
+    }
+
+    function isReviewer() {
+      return role() == "REVIEWER";
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAdmin() && uid != null;
+      allow delete: if isAdmin();
+    }
+
+    match /security_events/{eventId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /audit_events/{eventId} {
+      allow read: if signedIn();
+      allow create, update, delete: if false;
+    }
+
+    match /audit_checkpoints/{checkpointId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /approvals/{approvalId} {
+      allow read: if signedIn();
+      allow create: if false;
+      allow update: if isAdmin() || isReviewer();
+      allow delete: if false;
+    }
+
+    match /policies/{policyId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /system_metadata/{document} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

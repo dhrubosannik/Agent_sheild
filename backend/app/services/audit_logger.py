@@ -21,9 +21,13 @@ class AuditLogger:
         approval_repo: ApprovalRepository | None = None,
         db: Database | None = None,
     ) -> None:
-        database = db or get_database()
-        self.audit_repo = audit_repo or AuditRepository(db=database)
-        self.approval_repo = approval_repo or ApprovalRepository(db=database)
+        if audit_repo is not None or approval_repo is not None:
+            self.audit_repo = audit_repo or AuditRepository(db=db)
+            self.approval_repo = approval_repo or ApprovalRepository(db=db)
+        else:
+            database = db or get_database()
+            self.audit_repo = AuditRepository(db=database)
+            self.approval_repo = ApprovalRepository(db=database)
 
     def log_event(
         self,
@@ -31,6 +35,7 @@ class AuditLogger:
         execution_status: ExecutionStatus | None = None,
         tool_name: str = "",
         requested_action: str = "",
+        actor_uid: str | None = None,
     ) -> AuditEvent:
         """Persists an AuditEvent record from an EvaluationResult.
 
@@ -51,6 +56,7 @@ class AuditLogger:
             risk_signals=evaluation_result.risk_signals,
             payload_fingerprint=evaluation_result.payload_fingerprint,
             execution_status=final_status,
+            actor_uid=actor_uid,
         )
 
         persisted_event = self.audit_repo.create(event)
@@ -140,6 +146,16 @@ def get_audit_logger(db: Database | None = None) -> AuditLogger:
 
 
 def get_audit_service() -> AuditLogger:
+    from ..core.config import get_settings
+    settings = get_settings()
+    if settings.database_mode.lower() == "firestore":
+        from ..storage.firestore_audit_repository import FirestoreAuditRepository
+        from ..storage.firestore_approval_repository import FirestoreApprovalRepository
+
+        return AuditLogger(
+            audit_repo=FirestoreAuditRepository(),
+            approval_repo=FirestoreApprovalRepository(),
+        )
     """FastAPI dependency for obtaining the AuditLogger service."""
     return get_audit_logger()
 

@@ -42,6 +42,10 @@ class AuditRepository:
             risk_signals=risk_signals,
             payload_fingerprint=row["payload_fingerprint"],
             execution_status=ExecutionStatus(row["execution_status"]),
+            sequence=row["sequence"] if "sequence" in row.keys() else None,
+            previous_event_hash=row["previous_event_hash"] if "previous_event_hash" in row.keys() else None,
+            current_event_hash=row["current_event_hash"] if "current_event_hash" in row.keys() else None,
+            actor_uid=row["actor_uid"] if "actor_uid" in row.keys() else None,
         )
 
     def create(self, event: AuditEvent) -> AuditEvent:
@@ -54,13 +58,54 @@ class AuditRepository:
         timestamp_str = event.timestamp.isoformat()
 
         with self.db.connection() as conn:
+            if event.sequence is None:
+                max_row = conn.execute(
+                    "SELECT COALESCE(MAX(sequence), 0) FROM audit_events"
+                ).fetchone()
+                event.sequence = int(max_row[0]) + 1
+
+            if event.previous_event_hash is None:
+                previous_row = conn.execute(
+                    "SELECT current_event_hash FROM audit_events "
+                    "WHERE sequence = ?",
+                    (event.sequence - 1,),
+                ).fetchone()
+                event.previous_event_hash = (
+                    previous_row[0] if previous_row is not None else "GENESIS"
+                )
+
+            from ..services.audit_integrity import compute_event_hash
+
+            integrity_payload = {
+                "event_id": event.event_id,
+                "timestamp": timestamp_str,
+                "tool_name": event.tool_name,
+                "decision": event.decision.value,
+                "policy_id": event.policy_id,
+                "reason_codes": event.reason_codes,
+                "destination_class": event.destination_class.value,
+                "data_labels": event.data_labels,
+                "risk_signals": [
+                    s.model_dump() if isinstance(s, RiskSignal) else s
+                    for s in event.risk_signals
+                ],
+                "payload_fingerprint": event.payload_fingerprint,
+                "execution_status": event.execution_status.value,
+                "sequence": event.sequence,
+                "actor_uid": event.actor_uid,
+            }
+            event.current_event_hash = compute_event_hash(
+                integrity_payload,
+                event.previous_event_hash,
+            )
             conn.execute(
                 """
                 INSERT INTO audit_events (
                     event_id, timestamp, tool_name, decision, policy_id,
                     reason_codes, destination_class, data_labels, risk_signals,
-                    payload_fingerprint, execution_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    payload_fingerprint, execution_status,
+                    sequence, previous_event_hash, current_event_hash, actor_uid
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.event_id,
@@ -74,6 +119,10 @@ class AuditRepository:
                     signals_json,
                     event.payload_fingerprint,
                     event.execution_status.value,
+                    event.sequence,
+                    event.previous_event_hash,
+                    event.current_event_hash,
+                    event.actor_uid,
                 ),
             )
             conn.commit()

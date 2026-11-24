@@ -30,6 +30,8 @@ chmod +x scripts/start_agentshield.sh
 
 Stop both services with `Ctrl+C`.
 
+The script reuses a backend or dashboard already listening on ports 8000 or 5173. It starts only missing services and stops only services that it started itself.
+
 ## Start services separately
 
 Backend:

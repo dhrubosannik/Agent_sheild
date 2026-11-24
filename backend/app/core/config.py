@@ -12,6 +12,18 @@ class Settings(BaseSettings):
     backend_port: int = 8000
     agentshield_policy_path: str = "backend/policies/default_policy.yaml"
     agentshield_database_path: str = "data/agentshield.db"
+    firebase_project_id: str | None = None
+    google_application_credentials: str | None = None
+    firebase_auth_required: bool = False
+    firebase_auth_emulator_host: str | None = None
+    firestore_emulator_host: str | None = None
+    database_mode: str = "sqlite"
+    cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
+    audit_signing_private_key_pem: str | None = None
+    audit_signing_public_key_pem: str | None = None
+    max_request_bytes: int = 262144
+    rate_limit_requests: int = 120
+    rate_limit_window_seconds: int = 60
 
     model_config = SettingsConfigDict(
         env_file=".env",

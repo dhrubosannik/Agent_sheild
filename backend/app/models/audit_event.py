@@ -20,3 +20,7 @@ class AuditEvent(BaseModel):
     risk_signals: list[str | RiskSignal] = Field(default_factory=list)
     payload_fingerprint: str | None = None
     execution_status: ExecutionStatus
+    sequence: int | None = None
+    previous_event_hash: str | None = None
+    current_event_hash: str | None = None
+    actor_uid: str | None = None

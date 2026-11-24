@@ -75,7 +75,7 @@ def test_integration_with_default_policy_file() -> None:
             ProtectedValue(
                 name="demo_secret",
                 value="DEMO_SECRET",
-                action=SecurityDecision.BLOCK,
+                action=SecurityDecision.REDACT,
             )
         ],
         rules=[
