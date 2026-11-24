@@ -1,0 +1,57 @@
+[
+  {
+    "name": "Valid Ed25519 Checkpoint Signature",
+    "passed": true,
+    "details": "Signature verified successfully"
+  },
+  {
+    "name": "Valid RSA Checkpoint Signature",
+    "passed": true,
+    "details": "Signature verified successfully"
+  },
+  {
+    "name": "Invalid Signature Rejection",
+    "passed": true,
+    "details": "Corrupted signature was rejected"
+  },
+  {
+    "name": "Modified Checkpoint Rejection",
+    "passed": true,
+    "details": "Tampered root_hash detected and rejected"
+  },
+  {
+    "name": "Modified Sequence Rejection",
+    "passed": true,
+    "details": "Tampered last_sequence detected and rejected"
+  },
+  {
+    "name": "Missing/Empty Checkpoint Handling",
+    "passed": true,
+    "details": "Empty checkpoint failed verification against original signature"
+  },
+  {
+    "name": "Wrong Public Key Rejection",
+    "passed": true,
+    "details": "Signature verified with wrong public key was rejected"
+  },
+  {
+    "name": "Key Rotation Verification",
+    "passed": true,
+    "details": "New key verified; old key rejected for new checkpoint"
+  },
+  {
+    "name": "Independent Verifier (Public Key Only)",
+    "passed": true,
+    "details": "Verified checkpoint without any private key access"
+  },
+  {
+    "name": "External Checkpoint Storage Operational",
+    "passed": false,
+    "details": "INCOMPLETE: No cloud storage bucket or public transparency log configured"
+  },
+  {
+    "name": "Automated Checkpoint Scheduler Operational",
+    "passed": false,
+    "details": "INCOMPLETE: No periodic cron or background daemon configured to produce signed checkpoints"
+  }
+]

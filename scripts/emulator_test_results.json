@@ -1,0 +1,132 @@
+[
+  {
+    "name": "Firebase Admin initialization",
+    "passed": true,
+    "details": "App initialized: [DEFAULT]"
+  },
+  {
+    "name": "Auth Registration (ADMIN)",
+    "passed": true,
+    "details": "UID: NwpsGjHQxR443iCiSWP6ToOVBWQ4, Email: admin_1795526715@agentshield.test"
+  },
+  {
+    "name": "Auth Registration (REVIEWER)",
+    "passed": true,
+    "details": "UID: pTBw0WjDCagmcevVn3OEg42pZmBt, Email: reviewer_1795526715@agentshield.test"
+  },
+  {
+    "name": "Auth Registration (VIEWER)",
+    "passed": true,
+    "details": "UID: UZ5Ue8NqBBnNCqJb1grxOZuF8DEv, Email: viewer_1795526715@agentshield.test"
+  },
+  {
+    "name": "Auth Login & Token Refresh (ADMIN)",
+    "passed": true,
+    "details": "Successfully logged in"
+  },
+  {
+    "name": "Auth Login & Token Refresh (REVIEWER)",
+    "passed": true,
+    "details": "Successfully logged in"
+  },
+  {
+    "name": "Auth Login & Token Refresh (VIEWER)",
+    "passed": true,
+    "details": "Successfully logged in"
+  },
+  {
+    "name": "Auth Password Reset Flow",
+    "passed": true,
+    "details": "OOB Code sent for admin_1795526715@agentshield.test"
+  },
+  {
+    "name": "Backend Token Verification (ADMIN)",
+    "passed": true,
+    "details": "Aud: demo-agentshield, Role: ADMIN"
+  },
+  {
+    "name": "Backend Token Verification (REVIEWER)",
+    "passed": true,
+    "details": "Aud: demo-agentshield, Role: REVIEWER"
+  },
+  {
+    "name": "Backend Token Verification (VIEWER)",
+    "passed": true,
+    "details": "Aud: demo-agentshield, Role: VIEWER"
+  },
+  {
+    "name": "Invalid Token Rejection",
+    "passed": true,
+    "details": "Invalid token properly rejected"
+  },
+  {
+    "name": "Missing Token Rejection",
+    "passed": true,
+    "details": "Rejected with HTTP 401"
+  },
+  {
+    "name": "Role Auth: ADMIN on Admin endpoint",
+    "passed": true,
+    "details": "Allowed UID NwpsGjHQxR443iCiSWP6ToOVBWQ4"
+  },
+  {
+    "name": "Role Auth: REVIEWER on Reviewer endpoint",
+    "passed": true,
+    "details": "Allowed UID pTBw0WjDCagmcevVn3OEg42pZmBt"
+  },
+  {
+    "name": "Role Auth: REVIEWER blocked from Admin endpoint",
+    "passed": true,
+    "details": "Blocked with HTTP 403"
+  },
+  {
+    "name": "Role Auth: VIEWER blocked from Reviewer endpoint",
+    "passed": true,
+    "details": "Blocked with HTTP 403"
+  },
+  {
+    "name": "Role Auth: VIEWER on Read endpoint",
+    "passed": true,
+    "details": "Allowed UID UZ5Ue8NqBBnNCqJb1grxOZuF8DEv"
+  },
+  {
+    "name": "Firestore Audit Chain Creation",
+    "passed": true,
+    "details": "Created 3 chained events (sequences: [1, 2, 3])"
+  },
+  {
+    "name": "Firestore Hash-Chain Verification",
+    "passed": true,
+    "details": "Integrity check: VALID"
+  },
+  {
+    "name": "Firestore Approval Creation & Read",
+    "passed": true,
+    "details": "Approval ID: test-apr-1795526715"
+  },
+  {
+    "name": "Firestore Approval Decision Update",
+    "passed": true,
+    "details": "Status: APPROVED"
+  },
+  {
+    "name": "Firestore Approval Conflict Rejection",
+    "passed": true,
+    "details": "Conflict properly raised on already-reviewed approval"
+  },
+  {
+    "name": "Security Rules: Unauthenticated Read Denied",
+    "passed": true,
+    "details": "HTTP 403"
+  },
+  {
+    "name": "Security Rules: Client Write to audit_events Forbidden",
+    "passed": true,
+    "details": "HTTP 403"
+  },
+  {
+    "name": "Security Rules: Default-Deny on Unknown Collection",
+    "passed": true,
+    "details": "HTTP 403"
+  }
+]

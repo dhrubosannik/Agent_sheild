@@ -1,0 +1,30 @@
+{
+  "source_sqlite_path": "data/agentshield.db",
+  "backup_path": "data/backups/agentshield_20261124_131458.db.backup",
+  "total_source_audits": 1341,
+  "total_migrated_audits": 1341,
+  "legacy_unhashed_audits": 1153,
+  "integrity_protected_audits": 188,
+  "duplicate_audits": 0,
+  "missing_audits_count": 0,
+  "total_source_approvals": 146,
+  "total_migrated_approvals": 146,
+  "duplicate_approvals": 0,
+  "missing_approvals_count": 0,
+  "source_chain_valid": true,
+  "migrated_chain_valid": true,
+  "migrated_chain_error": null,
+  "decision_distribution_source": {
+    "ALLOW": 840,
+    "BLOCK": 256,
+    "REDACT": 99,
+    "REQUIRE_APPROVAL": 146
+  },
+  "decision_distribution_migrated": {
+    "ALLOW": 840,
+    "BLOCK": 256,
+    "REDACT": 99,
+    "REQUIRE_APPROVAL": 146
+  },
+  "status": "PASS"
+}

@@ -69,8 +69,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!firebaseConfigured || firebaseUser) {
+      refresh();
+    }
+  }, [refresh, firebaseUser]);
 
   useEffect(() => {
     if (!firebaseConfigured) {

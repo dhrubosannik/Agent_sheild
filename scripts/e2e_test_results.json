@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Health Endpoint (Public)",
+    "passed": true,
+    "details": "Status: 200"
+  },
+  {
+    "name": "Unauthenticated Access Rejection (/events)",
+    "passed": true,
+    "details": "Status: 401"
+  },
+  {
+    "name": "Unauthenticated Access Rejection (/approvals)",
+    "passed": true,
+    "details": "Status: 401"
+  },
+  {
+    "name": "Unauthenticated Access Rejection (/policies)",
+    "passed": true,
+    "details": "Status: 401"
+  },
+  {
+    "name": "Authenticated Access with VIEWER (/events)",
+    "passed": true,
+    "details": "Total items: 0"
+  },
+  {
+    "name": "Authenticated Access with VIEWER (/approvals)",
+    "passed": true,
+    "details": "Total items: 0"
+  },
+  {
+    "name": "Authenticated Access with VIEWER (/policies)",
+    "passed": true,
+    "details": "Policy version: 1"
+  },
+  {
+    "name": "Demo Scenario 1: Safe Tool Call (ALLOW & Executed)",
+    "passed": true,
+    "details": "Decision: ALLOW"
+  },
+  {
+    "name": "Demo Scenario 2: Malicious Tool Call (BLOCK & Not Executed)",
+    "passed": true,
+    "details": "Decision: BLOCK"
+  },
+  {
+    "name": "Demo Scenario 3: Redaction Tool Call (REDACT & Executed with Sanitized Args)",
+    "passed": true,
+    "details": "Decision: REDACT"
+  },
+  {
+    "name": "Demo Scenario 4: Approval Tool Call (REQUIRE_APPROVAL & Never Executed)",
+    "passed": true,
+    "details": "Results count: 2"
+  },
+  {
+    "name": "Pending Approvals Query in Firestore",
+    "passed": true,
+    "details": "Found 2 pending items"
+  },
+  {
+    "name": "Approval Decision by VIEWER Forbidden",
+    "passed": true,
+    "details": "Status: 403"
+  },
+  {
+    "name": "Approval Decision by REVIEWER Allowed",
+    "passed": true,
+    "details": "Status: 200"
+  },
+  {
+    "name": "Approval Conflict on Re-Review (HTTP 409)",
+    "passed": true,
+    "details": "Status: 409"
+  },
+  {
+    "name": "Role Assignment by Non-Admin Forbidden",
+    "passed": true,
+    "details": "Status: 403"
+  },
+  {
+    "name": "Role Assignment by ADMIN Allowed",
+    "passed": true,
+    "details": "Status: 200"
+  },
+  {
+    "name": "Admin Self-Demotion Prevented",
+    "passed": true,
+    "details": "Status: 403"
+  }
+]

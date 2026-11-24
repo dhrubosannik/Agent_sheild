@@ -85,14 +85,14 @@ class FirestoreApprovalRepository:
         approval = self._from_document(document.to_dict())
         if approval.status != ApprovalStatus.PENDING:
             raise ApprovalConflictError("Approval has already been reviewed")
-        decision_value = decision.value if isinstance(decision, ApprovalStatus) else ApprovalStatus(decision)
-        if decision_value not in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
+        decision_enum = decision if isinstance(decision, ApprovalStatus) else ApprovalStatus(decision)
+        if decision_enum not in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
             raise ValueError("Invalid approval decision")
-        approval.status = decision_value
+        approval.status = decision_enum
         approval.reviewer = reviewer
         approval.reviewed_at = datetime.now()
         ref.update({
-            "status": approval.status.value,
+            "status": decision_enum.value,
             "reviewer": approval.reviewer,
             "reviewed_at": approval.reviewed_at.isoformat(),
         })

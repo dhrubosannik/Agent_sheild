@@ -1,16 +1,31 @@
 import {
   getAuth,
+  connectAuthEmulator,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  type Auth,
   type User,
 } from "firebase/auth";
 import { getFirebaseApp, firebaseConfigured } from "./firebase";
 
-export function getFirebaseAuth() {
+let cachedAuth: Auth | null = null;
+
+export function getFirebaseAuth(): Auth | null {
+  if (cachedAuth) return cachedAuth;
   const app = getFirebaseApp();
-  return app ? getAuth(app) : null;
+  if (!app) return null;
+  cachedAuth = getAuth(app);
+  const emulatorUrl =
+    import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL ||
+    (import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true"
+      ? "http://127.0.0.1:9099"
+      : null);
+  if (emulatorUrl) {
+    connectAuthEmulator(cachedAuth, emulatorUrl, { disableWarnings: true });
+  }
+  return cachedAuth;
 }
 
 export async function registerWithEmail(email: string, password: string) {

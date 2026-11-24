@@ -25,10 +25,15 @@ def get_firebase_app() -> Any | None:
         except ValueError:
             pass
 
+        import os
+        emulator_host = os.environ.get("FIREBASE_AUTH_EMULATOR_HOST") or settings.firebase_auth_emulator_host
+        if emulator_host:
+            os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = emulator_host
+
         credential = None
         if settings.google_application_credentials:
             credential = credentials.Certificate(settings.google_application_credentials)
-        elif settings.environment != "development":
+        elif settings.environment != "development" and not emulator_host:
             credential = credentials.ApplicationDefault()
 
         return firebase_admin.initialize_app(
