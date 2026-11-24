@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict
 
 from ..core.policy_loader import load_policy
 from ..models.enums import SecurityDecision
+from ..core.auth import AuthenticatedUser, UserRole, require_roles
+from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/policies", tags=["Policies"])
 
@@ -37,7 +39,9 @@ class PolicyView(BaseModel):
 
 
 @router.get("/current", response_model=PolicyView)
-def get_current_policy() -> PolicyView:
+def get_current_policy(
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
+) -> PolicyView:
     policy = load_policy()
     return PolicyView(
         version=policy.version,

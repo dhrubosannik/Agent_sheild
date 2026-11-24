@@ -45,6 +45,19 @@ def _matches_rule(
     return True
 
 
+def _payload_contains_value(value: Any, secret: str) -> bool:
+    if isinstance(value, str):
+        return secret in value
+    if isinstance(value, dict):
+        return any(
+            _payload_contains_value(key, secret) or _payload_contains_value(item, secret)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_payload_contains_value(item, secret) for item in value)
+    return False
+
+
 def evaluate_policy(
     tool_name: str,
     normalized_arguments: dict[str, Any],
@@ -80,6 +93,20 @@ def evaluate_policy(
                 policy_id=rule.id,
                 reason_codes=reasons,
                 explanation=f"Action blocked by policy rule '{rule.id}': {rule.description}",
+            )
+
+    # Configured per-value BLOCK actions take precedence over generic
+    # redaction/approval rules, while explicit block rules above remain first.
+    for protected_value in policy.protected_values:
+        if (
+            protected_value.action == SecurityDecision.BLOCK
+            and _payload_contains_value(normalized_arguments, protected_value.value)
+        ):
+            return EvaluationDecision(
+                decision=SecurityDecision.BLOCK,
+                policy_id=f"protected-value:{protected_value.name}",
+                reason_codes=["PROTECTED_VALUE_ACTION", "PROTECTED_DATA"],
+                explanation=f"Protected value '{protected_value.name}' is configured to block execution.",
             )
 
     # Precedence Step 3: Protected data sent to an unapproved or unknown destination -> BLOCK
@@ -122,6 +149,38 @@ def evaluate_policy(
                 reason_codes=reasons,
                 explanation=f"Action requires human approval according to policy rule '{rule.id}': {rule.description}",
             )
+
+    # Per-value protected-data actions apply after explicit redaction and
+    # approval rules, but before broad allow/default behavior.
+    for protected_value in policy.protected_values:
+        if not _payload_contains_value(normalized_arguments, protected_value.value):
+            continue
+        if protected_value.action == SecurityDecision.REDACT:
+            return EvaluationDecision(
+                decision=SecurityDecision.REDACT,
+                policy_id=f"protected-value:{protected_value.name}",
+                reason_codes=["PROTECTED_VALUE_ACTION", "REDACTION_REQUIRED"],
+                explanation=f"Protected value '{protected_value.name}' is configured to require redaction.",
+            )
+        if protected_value.action == SecurityDecision.REQUIRE_APPROVAL:
+            return EvaluationDecision(
+                decision=SecurityDecision.REQUIRE_APPROVAL,
+                policy_id=f"protected-value:{protected_value.name}",
+                reason_codes=["PROTECTED_VALUE_ACTION", "POLICY_APPROVAL_RULE"],
+                explanation=f"Protected value '{protected_value.name}' requires human approval.",
+            )
+
+    # Pattern-detected credentials require enforcement unless an applicable
+    # redaction or approval rule matched above.
+    credential_labels = {"API_KEY", "AUTH_TOKEN"}
+    detected_credentials = credential_labels.intersection(data_labels)
+    if detected_credentials:
+        return EvaluationDecision(
+            decision=SecurityDecision.BLOCK,
+            policy_id="sensitive-credential-pattern",
+            reason_codes=["SENSITIVE_CREDENTIAL_PATTERN"],
+            explanation="API-key or authentication-token patterns cannot be sent without an explicit redaction or approval policy.",
+        )
 
     # Precedence Step 6: Explicit allow rules
     allow_rules = [r for r in policy.rules if r.decision == SecurityDecision.ALLOW]

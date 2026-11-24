@@ -12,6 +12,10 @@ import Approvals from "./pages/Approvals";
 import Policies from "./pages/Policies";
 import Demo from "./pages/Demo";
 import Settings from "./pages/Settings";
+import AuthScreen from "./components/AuthScreen";
+import { firebaseConfigured } from "./firebase/firebase";
+import { getFirebaseAuth } from "./firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 
 const pageTitles = {
   overview: "Overview",
@@ -25,6 +29,8 @@ const pageTitles = {
 };
 
 export default function App() {
+  const [firebaseUser, setFirebaseUser] = useState(null);
+  const [firebaseLoading, setFirebaseLoading] = useState(firebaseConfigured);
   const [theme, setTheme] = useState(() => localStorage.getItem("agentshield-theme") || "dark");
   const [activePage, setActivePage] = useState("overview");
   const [collapsed, setCollapsed] = useState(false);
@@ -67,6 +73,22 @@ export default function App() {
   }, [refresh]);
 
   useEffect(() => {
+    if (!firebaseConfigured) {
+      setFirebaseLoading(false);
+      return undefined;
+    }
+    const auth = getFirebaseAuth();
+    if (!auth) {
+      setFirebaseLoading(false);
+      return undefined;
+    }
+    return onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      setFirebaseLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("agentshield-theme", theme);
   }, [theme]);
@@ -78,6 +100,13 @@ export default function App() {
   }, [notice]);
 
   const connected = Boolean(health);
+
+  if (firebaseLoading) {
+    return <div className="loading-state">Loading authentication...</div>;
+  }
+  if (firebaseConfigured && !firebaseUser) {
+    return <AuthScreen />;
+  }
 
   const handleApproval = async (approval, decision) => {
     const confirmed = window.confirm(`${decision === "APPROVED" ? "Approve" : "Reject"} ${approval.approval_id}?`);
@@ -129,7 +158,7 @@ export default function App() {
       case "settings":
         return <Settings health={health} />;
       default:
-        return <Overview events={events} approvals={approvals} onSelectEvent={setSelectedEvent} />;
+        return <Overview events={events} approvals={approvals} onSelectEvent={setSelectedEvent} onRunDemo={handleDemo} runningDemo={runningDemo} />;
     }
   }, [activePage, approvals, busyApproval, error, events, health, loading, lastRun, policy, runningDemo]);
 

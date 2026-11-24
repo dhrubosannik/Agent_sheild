@@ -20,7 +20,7 @@ def _create_test_policy() -> PolicyConfiguration:
             ProtectedValue(
                 name="demo_secret",
                 value="DEMO_SECRET",
-                action=SecurityDecision.BLOCK,
+                action=SecurityDecision.REDACT,
             )
         ],
         rules=[
@@ -178,6 +178,108 @@ def test_explicit_deny_takes_precedence_over_broad_allow() -> None:
     # BLOCK must take precedence over the broad ALLOW rule
     assert result.decision == SecurityDecision.BLOCK
     assert result.policy_id == "specific-block"
+
+
+def test_configured_protected_value_blocks_approved_destination() -> None:
+    policy = _create_test_policy()
+    policy.protected_values = [
+        ProtectedValue(
+            name="demo_secret",
+            value="DEMO_SECRET",
+            action=SecurityDecision.BLOCK,
+        )
+    ]
+
+    policy.rules = [
+        rule
+        for rule in policy.rules
+        if rule.id != "redact-internal-logs"
+    ]
+    policy.rules.append(
+        SecurityRule(
+            id="allow-clean-send-only",
+            description="Allow only clean email",
+            tools=["send_email"],
+            destination_classes=[DestinationClass.APPROVED],
+            decision=SecurityDecision.ALLOW,
+        )
+    )
+
+    result = evaluate_policy(
+        tool_name="send_email",
+        normalized_arguments={"to": "user@example.org", "body": "DEMO_SECRET"},
+        destination_class=DestinationClass.APPROVED,
+        data_labels=["PROTECTED"],
+        risk_signals=[],
+        policy=policy,
+    )
+
+    assert result.decision == SecurityDecision.BLOCK
+    assert result.policy_id == "protected-value:demo_secret"
+
+
+def test_explicit_redaction_rule_preserved_for_configured_protected_value() -> None:
+    policy = _create_test_policy()
+
+    result = evaluate_policy(
+        tool_name="write_log",
+        normalized_arguments={"message": "DEMO_SECRET"},
+        destination_class=DestinationClass.APPROVED,
+        data_labels=["PROTECTED"],
+        risk_signals=[],
+        policy=policy,
+    )
+
+    assert result.decision == SecurityDecision.REDACT
+    assert result.policy_id == "redact-internal-logs"
+
+
+def test_api_key_pattern_is_blocked_before_allow() -> None:
+    policy = _create_test_policy()
+
+    result = evaluate_policy(
+        tool_name="send_email",
+        normalized_arguments={
+            "to": "user@example.org",
+            "body": "sk-" + ("A" * 24),
+        },
+        destination_class=DestinationClass.APPROVED,
+        data_labels=["API_KEY"],
+        risk_signals=[],
+        policy=policy,
+    )
+
+    assert result.decision == SecurityDecision.BLOCK
+    assert result.policy_id == "sensitive-credential-pattern"
+
+
+def test_explicit_api_key_redaction_rule_allows_redacted_evaluation() -> None:
+    policy = _create_test_policy()
+    policy.rules.append(
+        SecurityRule(
+            id="redact-api-key",
+            description="Redact detected API-key patterns",
+            tools=["send_email"],
+            data_labels=["API_KEY"],
+            destination_classes=[DestinationClass.APPROVED],
+            decision=SecurityDecision.REDACT,
+        )
+    )
+
+    result = evaluate_policy(
+        tool_name="send_email",
+        normalized_arguments={
+            "to": "user@example.org",
+            "body": "sk-" + ("A" * 24),
+        },
+        destination_class=DestinationClass.APPROVED,
+        data_labels=["API_KEY"],
+        risk_signals=[],
+        policy=policy,
+    )
+
+    assert result.decision == SecurityDecision.REDACT
+    assert result.policy_id == "redact-api-key"
 
 
 def test_unknown_high_risk_actions_follow_safe_default() -> None:

@@ -94,3 +94,12 @@ def test_valid_approval() -> None:
 def test_invalid_approval_status_rejected() -> None:
     with pytest.raises(ValueError):
         ApprovalStatus("WAITING")
+
+
+def test_large_context_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        ToolCall(
+            tool_name="send_email",
+            arguments={"body": "clean"},
+            context={"document": "x" * (256 * 1024)},
+        )

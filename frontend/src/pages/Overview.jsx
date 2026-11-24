@@ -2,7 +2,7 @@ import { Ban, CheckCircle2, Filter, ShieldAlert, UserCheck } from "lucide-react"
 import { formatTimestamp } from "../components/EventTable";
 import StatusBadge from "../components/StatusBadge";
 
-export default function Overview({ events, approvals, onSelectEvent }) {
+export default function Overview({ events, approvals, onSelectEvent, onRunDemo, runningDemo }) {
   const counts = events.reduce((result, event) => {
     result.total += 1;
     if (event.decision === "ALLOW") result.allow += 1;
@@ -49,22 +49,22 @@ export default function Overview({ events, approvals, onSelectEvent }) {
           <section className="reference-panel">
             <h2>01 // MVP SAFETY DEMO FLOW</h2>
             <div className="demo-list">
-              <article className="demo-row">
+              <button type="button" className="demo-row" onClick={() => onRunDemo("malicious")} disabled={runningDemo !== null}>
                 <div><span>SCEN-01 [ACTIVE]</span><strong>Indirect Prompt Injection</strong></div>
                 <b className="decision-tag red">BLOCK</b>
-              </article>
-              <article className="demo-row">
+              </button>
+              <button type="button" className="demo-row" onClick={() => onRunDemo("safe")} disabled={runningDemo !== null}>
                 <div><span>SCEN-02</span><strong>Benign Internal Summary</strong></div>
                 <b className="decision-tag green">ALLOW</b>
-              </article>
-              <article className="demo-row">
+              </button>
+              <button type="button" className="demo-row" onClick={() => onRunDemo("redaction")} disabled={runningDemo !== null}>
                 <div><span>SCEN-03</span><strong>Partner PII Data Transfer</strong></div>
                 <b className="decision-tag amber">REDACT</b>
-              </article>
-              <article className="demo-row">
+              </button>
+              <button type="button" className="demo-row" onClick={() => onRunDemo("approval")} disabled={runningDemo !== null}>
                 <div><span>SCEN-04</span><strong>Bulk Payroll Export</strong></div>
                 <b className="decision-tag neutral">APPROVAL</b>
-              </article>
+              </button>
             </div>
           </section>
 

@@ -6,6 +6,7 @@ from ..models.evaluation import EvaluationResult
 from ..models.tool_call import ToolCall
 from ..services.audit_logger import AuditLogger, get_audit_service
 from ..services.security_engine import evaluate_tool_call
+from ..core.auth import AuthenticatedUser, UserRole, require_roles
 
 router = APIRouter(prefix="/api/v1", tags=["Evaluation"])
 
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/api/v1", tags=["Evaluation"])
 def evaluate_tool_call_endpoint(
     tool_call: ToolCall,
     audit_logger: AuditLogger = Depends(get_audit_service),
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> EvaluationResult:
     """Evaluates a proposed tool call using the deterministic security policy engine.
 
@@ -27,6 +29,7 @@ def evaluate_tool_call_endpoint(
         evaluation_result=result,
         tool_name=tool_call.tool_name,
         requested_action=f"Evaluate tool call '{tool_call.tool_name}'",
+        actor_uid=user.uid,
     )
 
     return result

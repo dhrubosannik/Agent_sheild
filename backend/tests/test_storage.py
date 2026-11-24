@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 import pytest
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 
 from backend.app.models.approval import Approval
 from backend.app.models.audit_event import AuditEvent
@@ -204,3 +205,31 @@ def test_invalid_approval_transitions_rejected(test_db: Database) -> None:
     # Non-existent approval raises 404 error
     with pytest.raises(ApprovalNotFoundError):
         approval_repo.update_decision("apr-nonexistent", ApprovalStatus.APPROVED, reviewer="reviewer-1")
+
+
+def test_concurrent_audit_writes_remain_consistent(test_db: Database) -> None:
+    repo = AuditRepository(db=test_db)
+
+    def write_event(index: int) -> AuditEvent:
+        event = AuditEvent(
+            event_id=f"evt-concurrent-{index}",
+            timestamp=datetime.now(UTC),
+            tool_name="send_email",
+            decision=SecurityDecision.ALLOW,
+            policy_id="allow-safe-email",
+            reason_codes=["SAFE_ACTION"],
+            destination_class=DestinationClass.APPROVED,
+            data_labels=[],
+            risk_signals=[],
+            payload_fingerprint=None,
+            execution_status=ExecutionStatus.EXECUTED,
+        )
+        return repo.create(event)
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        created = list(executor.map(write_event, range(40)))
+
+    items, total = repo.list_events(limit=100)
+    assert len(created) == 40
+    assert total == 40
+    assert len({item.event_id for item in items}) == 40

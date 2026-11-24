@@ -7,7 +7,7 @@ approved_domains:
 protected_values:
   - name: demo_secret
     value: DEMO_SECRET
-    action: BLOCK
+    action: REDACT
 rules:
   - id: block-secret-to-unapproved
     description: Block protected data sent to an unapproved destination

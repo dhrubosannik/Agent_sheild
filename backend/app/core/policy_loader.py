@@ -44,6 +44,12 @@ def load_policy(path: str | os.PathLike[str] | None = None) -> PolicyConfigurati
         raise PolicyValidationError("Policy configuration must be a YAML mapping")
 
     try:
-        return PolicyConfiguration.model_validate(data)
+        policy = PolicyConfiguration.model_validate(data)
     except ValidationError as exc:
         raise PolicyValidationError("Policy configuration contains invalid fields") from exc
+
+    rule_ids = [rule.id for rule in policy.rules]
+    if len(rule_ids) != len(set(rule_ids)):
+        raise PolicyValidationError("Policy configuration contains duplicate rule IDs")
+
+    return policy

@@ -12,6 +12,7 @@ from ..storage.approval_repository import (
     ApprovalConflictError,
     ApprovalNotFoundError,
 )
+from ..core.auth import AuthenticatedUser, UserRole, require_roles
 
 router = APIRouter(prefix="/api/v1/approvals", tags=["Approvals"])
 
@@ -38,6 +39,7 @@ def list_approvals(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     audit_logger: AuditLogger = Depends(get_audit_service),
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> ApprovalListResponse:
     """Retrieves paginated approval requests, optionally filtered by status (PENDING, APPROVED, REJECTED)."""
     items, total = audit_logger.list_approvals(
@@ -58,6 +60,7 @@ def review_approval(
     approval_id: str,
     payload: ApprovalDecisionRequest,
     audit_logger: AuditLogger = Depends(get_audit_service),
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER)),
 ) -> Approval:
     """Records an approval or rejection decision for a pending action.
 
@@ -65,10 +68,11 @@ def review_approval(
     it does not automatically re-execute the underlying tool call.
     """
     try:
+        reviewer_uid = user.uid if user.uid != "local-demo" else payload.reviewer
         updated = audit_logger.review_approval(
             approval_id=approval_id,
             decision=payload.decision,
-            reviewer=payload.reviewer,
+            reviewer=reviewer_uid,
         )
         return updated
     except ApprovalNotFoundError:

@@ -9,6 +9,7 @@ from examples.demo_agent import DemoAgent
 from sdk.agentshield import AgentShield
 from sdk.agentshield.results import ToolExecutionResult
 from ..services.audit_logger import AuditLogger, get_audit_service
+from ..core.auth import AuthenticatedUser, UserRole, require_roles
 
 router = APIRouter(prefix="/api/v1/demo", tags=["Demo"])
 
@@ -25,6 +26,7 @@ class DemoRunResponse(BaseModel):
 def run_demo_scenario(
     scenario: Literal["safe", "malicious", "redaction", "approval", "all"],
     audit_logger: AuditLogger = Depends(get_audit_service),
+    user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> DemoRunResponse:
     shield = AgentShield(
         raise_on_block=False,

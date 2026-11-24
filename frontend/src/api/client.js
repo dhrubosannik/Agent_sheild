@@ -1,14 +1,18 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+import { getCurrentIdToken } from "../firebase/auth";
 
 async function request(path, options = {}) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 10000);
   try {
+    const idToken = await getCurrentIdToken();
+    const authHeaders = idToken ? { Authorization: `Bearer ${idToken}` } : {};
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...options,
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders,
         ...(options.headers || {}),
       },
     });
