@@ -23,4 +23,5 @@ build/
 *.sqlite
 *.sqlite3
 *.backup
+data/backups/
 .DS_Store
