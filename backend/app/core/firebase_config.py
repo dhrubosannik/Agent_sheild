@@ -100,6 +100,7 @@ def validate_firebase_configuration(settings: Settings, test_mode: bool | None =
         "database_mode": settings.database_mode,
         "firebase_auth_required": settings.firebase_auth_required,
         "project_id": settings.firebase_project_id or "(not set)",
+        "firestore_database_id": settings.firestore_database_id,
         "auth_emulator": auth_host or "(not set)",
         "firestore_emulator": firestore_host or "(not set)",
         "admin_credentials": (

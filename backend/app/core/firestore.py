@@ -34,8 +34,10 @@ def get_firestore_client() -> Any:
         return gc_firestore.Client(
             project=settings.firebase_project_id,
             credentials=google.auth.credentials.AnonymousCredentials(),
+            database=settings.firestore_database_id,
         )
 
     from firebase_admin import firestore as fa_firestore
 
-    return fa_firestore.client(app=app)
+    database_id = settings.firestore_database_id
+    return fa_firestore.client(app=app, database_id=None if database_id == "(default)" else database_id)

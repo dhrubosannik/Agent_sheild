@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # the shared cloud project.
     firebase_cloud_project_confirm: str | None = None
     google_application_credentials: str | None = None
+    # Firestore database ID. The code has always used the default database;
+    # set this only if the shared project uses a named database.
+    firestore_database_id: str = "(default)"
     firebase_auth_required: bool = False
     firebase_auth_emulator_host: str | None = None
     firestore_emulator_host: str | None = None

@@ -23,7 +23,7 @@ These are known gaps that Phase 13.2 did **not** close, or closed only partly. N
 5. **Rate limiting.**
    - The Firestore limiter adds one transaction per request (latency and cost), and is shared per IP key. A flood from one IP across instances can exhaust transaction retries. That fails **closed** (503) by default (`RATE_LIMIT_FAIL_OPEN=false`).
    - `TRUSTED_PROXY_COUNT=1` for Render is an assumption that was **not tested on Render**. If the hop count is wrong, either every client shares one key or `X-Forwarded-For` becomes spoofable.
-   - The Firestore TTL policy for `rate_limits.expires_at` is declared in `firestore.indexes.json` but not deployed.
+   - No Firestore TTL policy for `rate_limits` (TTL requires the Blaze/billing plan, which the shared project does not have). Expired counter documents (one per client IP per minute window, a few bytes each) are not deleted automatically; add the TTL override on `rate_limits.expires_at` if billing is enabled, or clean up periodically.
 
 6. **Firestore composite indexes are declared, not proven.** `firestore.indexes.json` was derived from the actual queries. The emulator does not enforce composite indexes, and nothing was deployed, so a missing index would surface as a `FAILED_PRECONDITION` error on the first production query.
 
