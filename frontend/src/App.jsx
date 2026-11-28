@@ -13,7 +13,7 @@ import Policies from "./pages/Policies";
 import Demo from "./pages/Demo";
 import Settings from "./pages/Settings";
 import AuthScreen from "./components/AuthScreen";
-import { firebaseConfigured } from "./firebase/firebase";
+import { firebaseConfigured, firebaseConfigErrors } from "./firebase/firebase";
 import { getFirebaseAuth } from "./firebase/auth";
 import { onAuthStateChanged } from "firebase/auth";
 
@@ -30,6 +30,11 @@ const pageTitles = {
 
 export default function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
+  // True only after Firebase reports a verified email for this session (on
+  // sign-in, or after confirmEmailVerification() refreshed the ID token).
+  // Tracked separately because user.reload() mutates the same User object,
+  // which React would not see as a state change.
+  const [sessionVerified, setSessionVerified] = useState(false);
   const [firebaseLoading, setFirebaseLoading] = useState(firebaseConfigured);
   const [theme, setTheme] = useState(() => localStorage.getItem("agentshield-theme") || "dark");
   const [activePage, setActivePage] = useState("overview");
@@ -69,10 +74,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!firebaseConfigured || firebaseUser) {
+    if (!firebaseConfigured || (firebaseUser && sessionVerified)) {
       refresh();
     }
-  }, [refresh, firebaseUser]);
+  }, [refresh, firebaseUser, sessionVerified]);
 
   useEffect(() => {
     if (!firebaseConfigured) {
@@ -86,6 +91,7 @@ export default function App() {
     }
     return onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
+      setSessionVerified(user?.emailVerified === true);
       setFirebaseLoading(false);
     });
   }, []);
@@ -103,15 +109,29 @@ export default function App() {
 
   const connected = Boolean(health);
 
+  if (firebaseConfigErrors.length) {
+    return (
+      <div className="error-state">
+        <strong>Firebase configuration is incomplete</strong>
+        <ul>{firebaseConfigErrors.map((message) => <li key={message}>{message}</li>)}</ul>
+        <span>Fix the frontend .env file for the selected VITE_FIREBASE_TARGET and restart the dev server.</span>
+      </div>
+    );
+  }
   if (firebaseLoading) {
     return <div className="loading-state">Loading authentication...</div>;
   }
-  if (firebaseConfigured && (!firebaseUser || !firebaseUser.emailVerified)) {
+  if (firebaseConfigured && (!firebaseUser || !sessionVerified)) {
     return (
       <AuthScreen
         user={firebaseUser}
         onVerified={(verifiedUser) => {
-          setFirebaseUser(verifiedUser || { ...getFirebaseAuth().currentUser, emailVerified: true });
+          // Called only after verification was confirmed with a refreshed
+          // token; no fallback marks an unconfirmed user as verified.
+          if (verifiedUser?.emailVerified === true) {
+            setFirebaseUser(verifiedUser);
+            setSessionVerified(true);
+          }
         }}
       />
     );
@@ -122,7 +142,7 @@ export default function App() {
     if (!confirmed) return;
     setBusyApproval(approval.approval_id);
     try {
-      await api.decideApproval(approval.approval_id, decision, "demo-reviewer");
+      await api.decideApproval(approval.approval_id, decision);
       setNotice(`Approval ${decision.toLowerCase()} successfully.`);
       await refresh();
     } catch (err) {
@@ -196,7 +216,7 @@ export default function App() {
               <div><dt>Tool name</dt><dd><code>{selectedEvent.tool_name}</code></dd></div>
               <div><dt>Matched policy</dt><dd><code>{selectedEvent.policy_id}</code></dd></div>
               <div><dt>Destination</dt><dd>{selectedEvent.destination_class}</dd></div>
-              <div><dt>Execution</dt><dd>{selectedEvent.execution_status}</dd></div>
+              <div><dt>Execution</dt><dd>{selectedEvent.effective_execution_status || selectedEvent.execution_status}</dd></div>
               <div><dt>Payload fingerprint</dt><dd><code>{selectedEvent.payload_fingerprint || "Not available"}</code></dd></div>
             </dl>
             <section>

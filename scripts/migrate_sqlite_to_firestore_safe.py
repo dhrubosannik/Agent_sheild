@@ -209,13 +209,24 @@ def main():
     parser.add_argument("--audit-collection", default="migration_test_audit_events")
     parser.add_argument("--approval-collection", default="migration_test_approvals")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--allow-cloud",
+        action="store_true",
+        help="Required to write to the shared cloud project (FIREBASE_TARGET=cloud). Default target is the emulator.",
+    )
     args = parser.parse_args()
 
     client = None
     if not args.dry_run:
         import os
         os.environ.setdefault("DATABASE_MODE", "firestore")
-        os.environ.setdefault("FIREBASE_PROJECT_ID", "demo-agentshield")
+        os.environ.setdefault("FIREBASE_TARGET", "emulator")
+        if os.environ["FIREBASE_TARGET"] == "emulator":
+            os.environ.setdefault("FIREBASE_PROJECT_ID", "demo-agentshield")
+            os.environ.setdefault("FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099")
+            os.environ.setdefault("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080")
+        elif os.environ["FIREBASE_TARGET"] == "cloud" and not args.allow_cloud:
+            raise SystemExit("Refusing to write to the shared cloud Firestore project without --allow-cloud.")
         from backend.app.core.config import get_settings
         get_settings.cache_clear()
         try:

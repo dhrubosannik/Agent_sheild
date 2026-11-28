@@ -3,16 +3,26 @@ services:
     name: agentshield-api
     runtime: python
     plan: free
+    # The rate limiter and audit chain are shared through Firestore, so more
+    # than one instance is safe. Do not switch RATE_LIMIT_BACKEND to memory
+    # unless numInstances stays 1 and RATE_LIMIT_SINGLE_INSTANCE=true.
+    numInstances: 1
     buildCommand: python -m pip install -r backend/requirements.txt
     startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: FIREBASE_TARGET
+        value: cloud
       - key: DATABASE_MODE
         value: firestore
       - key: FIREBASE_AUTH_REQUIRED
         value: true
+      - key: RATE_LIMIT_BACKEND
+        value: firestore
+      - key: TRUSTED_PROXY_COUNT
+        value: 1
       - key: FIREBASE_PROJECT_ID
         sync: false
       - key: GOOGLE_APPLICATION_CREDENTIALS

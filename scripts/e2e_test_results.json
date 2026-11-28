@@ -22,12 +22,12 @@
   {
     "name": "Authenticated Access with VIEWER (/events)",
     "passed": true,
-    "details": "Total items: 0"
+    "details": "Total items: 3"
   },
   {
     "name": "Authenticated Access with VIEWER (/approvals)",
     "passed": true,
-    "details": "Total items: 0"
+    "details": "Total items: 1"
   },
   {
     "name": "Authenticated Access with VIEWER (/policies)",

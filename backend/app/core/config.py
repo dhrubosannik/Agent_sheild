@@ -1,4 +1,5 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -12,7 +13,12 @@ class Settings(BaseSettings):
     backend_port: int = 8000
     agentshield_policy_path: str = "backend/policies/default_policy.yaml"
     agentshield_database_path: str = "data/agentshield.db"
+    # none | emulator | cloud. See backend/app/core/firebase_config.py.
+    firebase_target: str = "none"
     firebase_project_id: str | None = None
+    # Must repeat FIREBASE_PROJECT_ID to connect a non-production machine to
+    # the shared cloud project.
+    firebase_cloud_project_confirm: str | None = None
     google_application_credentials: str | None = None
     firebase_auth_required: bool = False
     firebase_auth_emulator_host: str | None = None
@@ -24,9 +30,25 @@ class Settings(BaseSettings):
     max_request_bytes: int = 262144
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
+    # "auto" -> firestore when database_mode=firestore, else memory.
+    rate_limit_backend: str = "auto"
+    # Required acknowledgement to run the in-memory limiter in production:
+    # it is only correct for a single application instance.
+    rate_limit_single_instance: bool = False
+    rate_limit_fail_open: bool = False
+    # Number of trusted reverse proxies in front of the app (Render: 1). When
+    # 0, X-Forwarded-For is ignored.
+    trusted_proxy_count: int = 0
+    # Explicit development identities, "uid:ROLE,uid2:ROLE". Used only when
+    # firebase_auth_required is false and environment is not production, and
+    # only when the request names one via the X-AgentShield-Dev-User header.
+    dev_auth_identities: str = ""
+    dev_auth_allow_remote: bool = False
 
+    # AGENTSHIELD_ENV_FILE selects the env file (e.g. .env.emulator or
+    # .env.cloud) so emulator and cloud configurations stay separate.
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.environ.get("AGENTSHIELD_ENV_FILE", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

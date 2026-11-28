@@ -1,13 +1,10 @@
 # Firebase Setup Guide
 
-1. Create a Firebase project.
-2. Enable Email/Password Authentication.
-3. Create a Firestore database.
-4. Create a service account or configure Application Default Credentials.
-5. Set `FIREBASE_PROJECT_ID`.
-6. Set `GOOGLE_APPLICATION_CREDENTIALS` to a local secret file outside source control, or use the Render secret environment mechanism.
-7. Set frontend Firebase public configuration variables.
-8. Start Firebase Emulator Suite for local auth and Firestore testing.
-9. Deploy `firestore.rules` only after emulator tests pass.
+AgentShield uses an **existing shared Firebase project** owned by a teammate.
+Do not create a new project and do not change its Project ID.
 
-Never commit service-account JSON or private signing keys.
+- Team roles, access and safe shared use: [FIREBASE_SHARED_TEAM_SETUP.md](FIREBASE_SHARED_TEAM_SETUP.md)
+- Day-to-day setup (no Firebase / emulator / shared cloud): [FIREBASE_DEVELOPMENT_GUIDE.md](FIREBASE_DEVELOPMENT_GUIDE.md)
+
+Never commit service-account JSON or private signing keys, and never put
+Firebase Admin credentials in frontend (`VITE_*`) variables.

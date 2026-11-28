@@ -108,6 +108,24 @@ def test_protected_data_to_unknown_destination_returns_block() -> None:
 
 
 def test_redaction_rule_returns_redact() -> None:
+    # Allowlisted internal destinations are classified APPROVED, so redaction
+    # rules still apply to them.
+    policy = _create_test_policy()
+
+    result = evaluate_policy(
+        tool_name="write_log",
+        normalized_arguments={"message": "Contains DEMO_SECRET for diagnostics"},
+        destination_class=DestinationClass.APPROVED,
+        data_labels=["PROTECTED"],
+        risk_signals=[],
+        policy=policy,
+    )
+
+    assert result.decision == SecurityDecision.REDACT
+    assert result.policy_id == "redact-internal-logs"
+
+
+def test_non_allowlisted_internal_destination_is_blocked_before_redaction() -> None:
     policy = _create_test_policy()
 
     result = evaluate_policy(
@@ -119,8 +137,9 @@ def test_redaction_rule_returns_redact() -> None:
         policy=policy,
     )
 
-    assert result.decision == SecurityDecision.REDACT
-    assert result.policy_id == "redact-internal-logs"
+    assert result.decision == SecurityDecision.BLOCK
+    assert result.policy_id == "internal-destination-boundary"
+    assert "INTERNAL_DESTINATION" in result.reason_codes
 
 
 def test_approval_required_rule_returns_require_approval() -> None:

@@ -2,21 +2,29 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 import pytest
 
+from backend.app.core.config import get_settings
 from backend.app.main import app
 from backend.app.models.enums import ApprovalStatus, SecurityDecision
 from backend.app.services.audit_logger import AuditLogger, get_audit_service
 from backend.app.storage.database import Database
 
+DEV_IDENTITIES = "local-admin:ADMIN,local-reviewer:REVIEWER,local-viewer:VIEWER"
+
 
 @pytest.fixture
-def client_with_test_db(tmp_path: Path):
+def client_with_test_db(tmp_path: Path, monkeypatch):
     test_db = Database(db_path=tmp_path / "api_test.db")
     test_logger = AuditLogger(db=test_db)
+    monkeypatch.setattr(get_settings(), "dev_auth_identities", DEV_IDENTITIES)
 
     # Override the FastAPI dependency
     app.dependency_overrides[get_audit_service] = lambda: test_logger
 
-    with TestClient(app) as client:
+    with TestClient(
+        app,
+        client=("127.0.0.1", 50000),
+        headers={"X-AgentShield-Dev-User": "local-admin"},
+    ) as client:
         yield client, test_logger
 
     app.dependency_overrides.clear()
@@ -158,15 +166,16 @@ def test_approvals_workflow(client_with_test_db) -> None:
     approval_id = approvals["items"][0]["approval_id"]
     assert approvals["items"][0]["status"] == "PENDING"
 
-    # Review approval -> APPROVED
+    # Review approval -> APPROVED. A reviewer name in the body is ignored:
+    # the authenticated identity is recorded.
     decision_res = client.post(
         f"/api/v1/approvals/{approval_id}/decision",
-        json={"decision": "APPROVED", "reviewer": "admin-1"},
+        json={"decision": "APPROVED", "reviewer": "someone-else"},
     )
     assert decision_res.status_code == 200
     updated = decision_res.json()
     assert updated["status"] == "APPROVED"
-    assert updated["reviewer"] == "admin-1"
+    assert updated["reviewer"] == "dev:local-admin"
     assert updated["reviewed_at"] is not None
 
     # Duplicate review on already reviewed approval must return 409 Conflict

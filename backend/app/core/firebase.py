@@ -1,27 +1,40 @@
-"""Firebase Admin initialization and official token verification."""
+"""Firebase Admin initialization and official token verification.
 
-import os
+The Firebase target (none / emulator / cloud) is chosen and validated in
+``firebase_config``; this module never guesses between emulator and cloud.
+"""
+
 from functools import lru_cache
+import os
 from typing import Any
 
 import firebase_admin
 from firebase_admin import auth, credentials
 
 from .config import get_settings
+from .firebase_config import (
+    FirebaseConfigurationError,
+    emulator_hosts,
+    enforce_firebase_configuration,
+    firebase_target,
+)
 
-
-class FirebaseConfigurationError(RuntimeError):
-    pass
+__all__ = ["FirebaseConfigurationError", "get_firebase_app", "verify_firebase_id_token"]
 
 
 @lru_cache
 def get_firebase_app() -> Any | None:
     settings = get_settings()
-    if not settings.firebase_project_id:
+    target = firebase_target(settings)
+    if target == "none":
         return None
+    enforce_firebase_configuration(settings)
 
-    if settings.firebase_auth_emulator_host and "FIREBASE_AUTH_EMULATOR_HOST" not in os.environ:
-        os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = settings.firebase_auth_emulator_host
+    if target == "emulator":
+        auth_host, firestore_host = emulator_hosts(settings)
+        os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = auth_host
+        if firestore_host:
+            os.environ["FIRESTORE_EMULATOR_HOST"] = firestore_host
 
     try:
         try:
@@ -29,17 +42,13 @@ def get_firebase_app() -> Any | None:
         except ValueError:
             pass
 
-        import os
-        emulator_host = os.environ.get("FIREBASE_AUTH_EMULATOR_HOST") or settings.firebase_auth_emulator_host
-        if emulator_host:
-            os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = emulator_host
-
         credential = None
-        if settings.google_application_credentials:
-            credential = credentials.Certificate(settings.google_application_credentials)
-        elif settings.environment != "development" and not emulator_host:
-            credential = credentials.ApplicationDefault()
-
+        if target == "cloud":
+            credential = (
+                credentials.Certificate(os.path.expanduser(settings.google_application_credentials))
+                if settings.google_application_credentials
+                else credentials.ApplicationDefault()
+            )
         return firebase_admin.initialize_app(
             credential,
             {"projectId": settings.firebase_project_id},

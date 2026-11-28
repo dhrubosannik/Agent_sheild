@@ -1,8 +1,12 @@
+import pytest
+from starlette.requests import Request
+
 from backend.app.core.auth import (
     AuthenticatedUser,
     UserRole,
     get_authenticated_user,
     require_roles,
+    validate_auth_configuration,
 )
 from fastapi import HTTPException
 from backend.app.core import auth as auth_module
@@ -17,16 +21,76 @@ class _ProductionSettings:
     google_application_credentials = None
 
 
-def test_local_development_identity_is_available() -> None:
-    user = get_authenticated_user()
-    assert user.uid == "local-demo"
-    assert user.role == UserRole.ADMIN
+class _DevSettings:
+    firebase_auth_required = False
+    environment = "development"
+    dev_auth_identities = "local-admin:ADMIN,local-viewer:VIEWER"
+    dev_auth_allow_remote = False
 
 
-def test_role_dependency_accepts_allowed_role() -> None:
+def _request(host: str = "127.0.0.1") -> Request:
+    return Request({"type": "http", "headers": [], "client": (host, 50000)})
+
+
+def test_development_mode_has_no_implicit_admin(monkeypatch) -> None:
+    class NoIdentities(_DevSettings):
+        dev_auth_identities = ""
+
+    monkeypatch.setattr(auth_module, "get_settings", lambda: NoIdentities())
+    with pytest.raises(HTTPException) as exc:
+        get_authenticated_user(_request(), None, None)
+    assert exc.value.status_code == 401
+
+
+def test_development_identity_header_is_required(monkeypatch) -> None:
+    monkeypatch.setattr(auth_module, "get_settings", lambda: _DevSettings())
+    with pytest.raises(HTTPException) as exc:
+        get_authenticated_user(_request(), None, None)
+    assert exc.value.status_code == 401
+
+
+def test_explicit_development_identity_and_role(monkeypatch) -> None:
+    monkeypatch.setattr(auth_module, "get_settings", lambda: _DevSettings())
+    admin = get_authenticated_user(_request(), None, "local-admin")
+    viewer = get_authenticated_user(_request(), None, "local-viewer")
+    assert (admin.uid, admin.role) == ("dev:local-admin", UserRole.ADMIN)
+    assert (viewer.uid, viewer.role) == ("dev:local-viewer", UserRole.VIEWER)
+
+
+def test_unknown_development_identity_rejected(monkeypatch) -> None:
+    monkeypatch.setattr(auth_module, "get_settings", lambda: _DevSettings())
+    with pytest.raises(HTTPException) as exc:
+        get_authenticated_user(_request(), None, "intruder")
+    assert exc.value.status_code == 401
+
+
+def test_development_identity_rejected_from_remote_client(monkeypatch) -> None:
+    monkeypatch.setattr(auth_module, "get_settings", lambda: _DevSettings())
+    with pytest.raises(HTTPException) as exc:
+        get_authenticated_user(_request("203.0.113.9"), None, "local-admin")
+    assert exc.value.status_code == 401
+
+
+def test_development_identities_ignored_in_production(monkeypatch) -> None:
+    class ProdWithDev(_DevSettings):
+        environment = "production"
+        firebase_auth_required = True
+
+    monkeypatch.setattr(auth_module, "get_settings", lambda: ProdWithDev())
+    with pytest.raises(HTTPException) as exc:
+        get_authenticated_user(_request(), None, "local-admin")
+    assert exc.value.status_code == 401
+    with pytest.raises(RuntimeError):
+        validate_auth_configuration(ProdWithDev())
+
+
+def test_role_dependency_enforces_development_role(monkeypatch) -> None:
+    monkeypatch.setattr(auth_module, "get_settings", lambda: _DevSettings())
     dependency = require_roles(UserRole.ADMIN, UserRole.REVIEWER)
-    user = dependency()
-    assert user.role == UserRole.ADMIN
+    assert dependency(_request(), None, "local-admin").role == UserRole.ADMIN
+    with pytest.raises(HTTPException) as exc:
+        dependency(_request(), None, "local-viewer")
+    assert exc.value.status_code == 403
 
 
 def test_production_missing_token_is_rejected(monkeypatch) -> None:
@@ -77,7 +141,7 @@ def test_insufficient_role_raises_403(monkeypatch) -> None:
 
     admin_only = require_roles(UserRole.ADMIN)
     try:
-        admin_only(authorization="Bearer valid-token")
+        admin_only(_request(), "Bearer valid-token", None)
         assert False, "VIEWER must not access ADMIN endpoint"
     except HTTPException as exc:
         assert exc.status_code == 403

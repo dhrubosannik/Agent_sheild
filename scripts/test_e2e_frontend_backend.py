@@ -24,6 +24,10 @@ PROJECT_ID = "demo-agentshield"
 
 os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = AUTH_EMULATOR_HOST
 os.environ["FIRESTORE_EMULATOR_HOST"] = FIRESTORE_EMULATOR_HOST
+os.environ["FIREBASE_TARGET"] = "emulator"
+os.environ["AGENTSHIELD_TEST_MODE"] = "1"
+os.environ["AGENTSHIELD_ENV_FILE"] = "/nonexistent/agentshield-test-env"
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 os.environ["FIREBASE_PROJECT_ID"] = PROJECT_ID
 os.environ["GCLOUD_PROJECT"] = PROJECT_ID
 os.environ["ENVIRONMENT"] = "development"
@@ -71,6 +75,14 @@ def main():
         )
         data = resp.json()
         uid = data["localId"]
+        # Verify the email (the backend rejects unverified accounts)
+        requests.post(
+            f"{auth_base}/accounts:sendOobCode?key=fake-key",
+            json={"requestType": "VERIFY_EMAIL", "idToken": data["idToken"]},
+        ).raise_for_status()
+        codes = requests.get(f"http://{AUTH_EMULATOR_HOST}/emulator/v1/projects/{PROJECT_ID}/oobCodes").json()["oobCodes"]
+        code = [c for c in codes if c["email"].lower() == email.lower() and c["requestType"] == "VERIFY_EMAIL"][-1]
+        requests.post(f"{auth_base}/accounts:update?key=fake-key", json={"oobCode": code["oobCode"]}).raise_for_status()
         # Set custom role claim
         auth.set_custom_user_claims(uid, {"role": role}, app=fb_app)
         # Login to refresh token with role claim

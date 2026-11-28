@@ -1,10 +1,5 @@
 """AgentShield security services package."""
 
-from .audit_logger import (
-    AuditLogger,
-    get_audit_logger,
-    reset_audit_logger_singleton,
-)
 from .destination_classifier import classify_destination
 from .injection_detector import detect_prompt_injection
 from .payload_normalizer import (
@@ -41,3 +36,16 @@ __all__ = [
     "SensitiveDetectionResult",
     "SensitiveFinding",
 ]
+
+
+_LAZY_AUDIT_EXPORTS = {"AuditLogger", "get_audit_logger", "reset_audit_logger_singleton"}
+
+
+def __getattr__(name: str):
+    # audit_logger imports the storage layer, which imports
+    # services.audit_integrity; importing it lazily avoids a package cycle.
+    if name in _LAZY_AUDIT_EXPORTS:
+        from . import audit_logger
+
+        return getattr(audit_logger, name)
+    raise AttributeError(name)

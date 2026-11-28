@@ -18,6 +18,10 @@ FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080"
 
 os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = AUTH_EMULATOR_HOST
 os.environ["FIRESTORE_EMULATOR_HOST"] = FIRESTORE_EMULATOR_HOST
+os.environ["FIREBASE_TARGET"] = "emulator"
+os.environ["AGENTSHIELD_TEST_MODE"] = "1"
+os.environ["AGENTSHIELD_ENV_FILE"] = "/nonexistent/agentshield-test-env"
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 os.environ["FIREBASE_PROJECT_ID"] = PROJECT_ID
 os.environ["GCLOUD_PROJECT"] = PROJECT_ID
 os.environ["ENVIRONMENT"] = "development"
@@ -96,6 +100,18 @@ def main():
                 "id_token": id_token,
                 "refresh_token": data["refreshToken"],
             }
+            # Verify the email (required by the backend since commit 9791375)
+            requests.post(
+                f"{auth_base_url}/accounts:sendOobCode?key=fake-api-key",
+                json={"requestType": "VERIFY_EMAIL", "idToken": id_token},
+            ).raise_for_status()
+            codes = requests.get(
+                f"http://{AUTH_EMULATOR_HOST}/emulator/v1/projects/{PROJECT_ID}/oobCodes"
+            ).json()["oobCodes"]
+            code = [c for c in codes if c["email"].lower() == email.lower() and c["requestType"] == "VERIFY_EMAIL"][-1]
+            requests.post(
+                f"{auth_base_url}/accounts:update?key=fake-api-key", json={"oobCode": code["oobCode"]}
+            ).raise_for_status()
             # Assign custom claims
             auth.set_custom_user_claims(uid, {"role": role_name}, app=app)
             record(f"Auth Registration ({role_name})", True, f"UID: {uid}, Email: {email}")
@@ -167,35 +183,35 @@ def main():
 
     # Admin check
     try:
-        user = admin_dep(admin_auth)
+        user = admin_dep(None, admin_auth, None)
         record("Role Auth: ADMIN on Admin endpoint", True, f"Allowed UID {user.uid}")
     except Exception as e:
         record("Role Auth: ADMIN on Admin endpoint", False, str(e))
 
     # Reviewer on Reviewer endpoint (Allowed)
     try:
-        user = reviewer_dep(reviewer_auth)
+        user = reviewer_dep(None, reviewer_auth, None)
         record("Role Auth: REVIEWER on Reviewer endpoint", True, f"Allowed UID {user.uid}")
     except Exception as e:
         record("Role Auth: REVIEWER on Reviewer endpoint", False, str(e))
 
     # Reviewer on Admin endpoint (Must be 403 Forbidden)
     try:
-        admin_dep(reviewer_auth)
+        admin_dep(None, reviewer_auth, None)
         record("Role Auth: REVIEWER blocked from Admin endpoint", False, "Reviewer was allowed on Admin endpoint")
     except HTTPException as e:
         record("Role Auth: REVIEWER blocked from Admin endpoint", e.status_code == 403, f"Blocked with HTTP {e.status_code}")
 
     # Viewer on Reviewer endpoint (Must be 403 Forbidden)
     try:
-        reviewer_dep(viewer_auth)
+        reviewer_dep(None, viewer_auth, None)
         record("Role Auth: VIEWER blocked from Reviewer endpoint", False, "Viewer was allowed on Reviewer endpoint")
     except HTTPException as e:
         record("Role Auth: VIEWER blocked from Reviewer endpoint", e.status_code == 403, f"Blocked with HTTP {e.status_code}")
 
     # Viewer on Viewer endpoint (Allowed)
     try:
-        user = viewer_dep(viewer_auth)
+        user = viewer_dep(None, viewer_auth, None)
         record("Role Auth: VIEWER on Read endpoint", True, f"Allowed UID {user.uid}")
     except Exception as e:
         record("Role Auth: VIEWER on Read endpoint", False, str(e))
@@ -228,30 +244,12 @@ def main():
     record("Firestore Audit Chain Creation", True, f"Created 3 chained events (sequences: {[e.sequence for e in events]})")
     
     # Verify hash chain continuity
-    from backend.app.services.audit_integrity import verify_chain
-    raw_events = [
-        {
-            "event_id": e.event_id,
-            "timestamp": e.timestamp.isoformat(),
-            "tool_name": e.tool_name,
-            "decision": e.decision.value,
-            "policy_id": e.policy_id,
-            "reason_codes": e.reason_codes,
-            "destination_class": e.destination_class.value,
-            "data_labels": e.data_labels,
-            "risk_signals": e.risk_signals,
-            "payload_fingerprint": e.payload_fingerprint,
-            "execution_status": e.execution_status.value,
-            "sequence": e.sequence,
-            "previous_event_hash": e.previous_event_hash,
-            "current_event_hash": e.current_event_hash,
-            "actor_uid": e.actor_uid,
-        }
-        for e in events
-    ]
+    from backend.app.services.audit_integrity import verify_audit_log
+    raw_events = audit_repo.export_chain_records()
     # Check sequences and hashes
-    valid, err = verify_chain(raw_events)
-    record("Firestore Hash-Chain Verification", valid, f"Integrity check: {err or 'VALID'}")
+    chain_report = verify_audit_log(raw_events, audit_repo.chain_head())["verified"]
+    valid, err = chain_report["valid"], chain_report["error"]
+    record("Firestore Hash-Chain Verification", valid, f"Integrity check: {err or 'VALID'} ({chain_report['count']} v2 records)")
 
     # Test Approval workflow in Firestore
     test_approval = Approval(

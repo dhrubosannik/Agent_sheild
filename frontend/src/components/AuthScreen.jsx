@@ -1,12 +1,25 @@
 import { useEffect, useState } from "react";
 import {
+  confirmEmailVerification,
   loginWithEmail,
   logoutFirebase,
   registerWithEmail,
-  reloadCurrentUser,
   resetPassword,
   sendVerificationEmail,
 } from "../firebase/auth";
+
+export const MESSAGES = {
+  notVerified:
+    "Your email address has not been verified yet. Open the verification link we emailed you, or resend it below.",
+  verificationSent: "A verification email has been sent to your registered email address.",
+  verificationSendFailed:
+    "Your account was created, but the verification email could not be sent. Use \"Resend Verification Email\".",
+  stillUnverified: "Your email is not verified yet. Please check your inbox and click the verification link.",
+  staleToken:
+    "Your email is verified, but your session could not be refreshed. Sign out and sign in again to continue.",
+  noSession: "Your session has expired. Please sign in again.",
+  verified: "Email verified successfully! Loading your workspace...",
+};
 
 export default function AuthScreen({ user: initialUser = null, onVerified = null }) {
   const [currentUser, setCurrentUser] = useState(initialUser);
@@ -14,9 +27,7 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState(
-    initialUser && !initialUser.emailVerified
-      ? "A verification email has been sent to your registered email address."
-      : ""
+    initialUser && !initialUser.emailVerified ? MESSAGES.notVerified : ""
   );
   const [messageType, setMessageType] = useState("info");
   const [busy, setBusy] = useState(false);
@@ -72,18 +83,24 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
         setMessage("Password reset email sent. Please check your inbox.");
         setMessageType("success");
       } else if (mode === "register") {
-        const credential = await registerWithEmail(email, password);
-        setCurrentUser(credential.user);
+        const registration = await registerWithEmail(email, password);
+        setCurrentUser(registration.user);
         setMode("verify");
-        setMessage("A verification email has been sent to your registered email address.");
-        setMessageType("success");
-        setResendCooldown(30);
+        if (registration.verificationEmailSent) {
+          setMessage(MESSAGES.verificationSent);
+          setMessageType("success");
+          setResendCooldown(30);
+        } else {
+          setMessage(MESSAGES.verificationSendFailed);
+          setMessageType("error");
+        }
       } else {
         const credential = await loginWithEmail(email, password);
         setCurrentUser(credential.user);
         if (!credential.user.emailVerified) {
+          // Signing in does not send an email; say so accurately.
           setMode("verify");
-          setMessage("A verification email has been sent to your registered email address.");
+          setMessage(MESSAGES.notVerified);
           setMessageType("info");
         } else if (onVerified) {
           onVerified(credential.user);
@@ -102,16 +119,24 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
     setMessage("");
     setMessageType("info");
     try {
-      const refreshedUser = await reloadCurrentUser();
-      setCurrentUser(refreshedUser);
-      if (refreshedUser?.emailVerified) {
-        setMessage("Email verified successfully! Loading your workspace...");
+      // Reloads the user, then force-refreshes the ID token so API requests
+      // carry email_verified=true. Never assumes verification on failure.
+      const outcome = await confirmEmailVerification();
+      setCurrentUser(outcome.user);
+      if (outcome.verified) {
+        setMessage(MESSAGES.verified);
         setMessageType("success");
         if (onVerified) {
-          onVerified(refreshedUser);
+          onVerified(outcome.user);
         }
       } else {
-        setMessage("Your email is not verified yet. Please check your inbox and click the verification link.");
+        const text =
+          outcome.reason === "STALE_TOKEN"
+            ? MESSAGES.staleToken
+            : outcome.reason === "NO_SESSION"
+              ? MESSAGES.noSession
+              : MESSAGES.stillUnverified;
+        setMessage(text);
         setMessageType("error");
       }
     } catch (error) {
@@ -128,7 +153,7 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
     setMessage("");
     try {
       await sendVerificationEmail(currentUser);
-      setMessage("A verification email has been sent to your registered email address.");
+      setMessage(MESSAGES.verificationSent);
       setMessageType("success");
       setResendCooldown(30);
     } catch (error) {

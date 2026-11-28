@@ -16,8 +16,14 @@ from .api.admin import router as admin_router
 from .core.config import get_settings
 from .storage.database import get_database
 from .core.security_middleware import SecurityHardeningMiddleware
+from .core.auth import validate_auth_configuration
+from .core.rate_limit import validate_rate_limit_configuration
+from .core.firebase_config import enforce_firebase_configuration
 
 settings = get_settings()
+enforce_firebase_configuration(settings)
+validate_auth_configuration(settings)
+validate_rate_limit_configuration(settings)
 
 if settings.environment.lower() == "production":
     local_origins = {"http://127.0.0.1:5173", "http://localhost:5173"}

@@ -67,14 +67,9 @@ class AgentShield:
 
                 settings = get_settings()
                 if settings.database_mode.lower() == "firestore":
-                    from backend.app.services.audit_logger import AuditLogger
-                    from backend.app.storage.firestore_audit_repository import FirestoreAuditRepository
-                    from backend.app.storage.firestore_approval_repository import FirestoreApprovalRepository
+                    from backend.app.services.audit_logger import get_audit_service
 
-                    self.audit_logger = AuditLogger(
-                        audit_repo=FirestoreAuditRepository(),
-                        approval_repo=FirestoreApprovalRepository(),
-                    )
+                    self.audit_logger = get_audit_service()
                 else:
                     self.audit_logger = get_audit_logger()
             except Exception:
@@ -93,6 +88,7 @@ class AgentShield:
             try:
                 existing = self.audit_logger.get_event(event.event_id)
                 if existing is not None:
+                    # Append-only: record the status change as a new chained record.
                     self.audit_logger.update_execution_status(
                         event.event_id, event.execution_status
                     )

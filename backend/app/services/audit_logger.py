@@ -84,8 +84,8 @@ class AuditLogger:
         event_id: str,
         execution_status: ExecutionStatus,
     ) -> bool:
-        """Updates the execution status of an existing audit event."""
-        return self.audit_repo.update_execution_status(event_id, execution_status)
+        """Appends an EXECUTION_STATUS record; the original event is never modified."""
+        return self.audit_repo.record_execution_status(event_id, execution_status)
 
     def get_event(self, event_id: str) -> AuditEvent | None:
         return self.audit_repo.get_by_id(event_id)
@@ -104,6 +104,18 @@ class AuditLogger:
             tool_name=tool_name,
         )
 
+    def list_events_page(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        decision: SecurityDecision | str | None = None,
+        tool_name: str | None = None,
+        cursor: str | None = None,
+    ) -> tuple[list[AuditEvent], int, str | None]:
+        return self.audit_repo.list_events_page(
+            limit=limit, offset=offset, decision=decision, tool_name=tool_name, cursor=cursor
+        )
+
     def get_approval(self, approval_id: str) -> Approval | None:
         return self.approval_repo.get_by_id(approval_id)
 
@@ -113,11 +125,16 @@ class AuditLogger:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Approval], int]:
-        return self.approval_repo.list_approvals(
-            status=status,
-            limit=limit,
-            offset=offset,
-        )
+        return self.approval_repo.list_approvals(status=status, limit=limit, offset=offset)
+
+    def list_approvals_page(
+        self,
+        status: ApprovalStatus | str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        cursor: str | None = None,
+    ) -> tuple[list[Approval], int, str | None]:
+        return self.approval_repo.list_approvals_page(status=status, limit=limit, offset=offset, cursor=cursor)
 
     def review_approval(
         self,
@@ -125,10 +142,12 @@ class AuditLogger:
         decision: ApprovalStatus | str,
         reviewer: str,
     ) -> Approval:
+        """Records a decision and its APPROVAL_DECISION audit record atomically."""
         return self.approval_repo.update_decision(
             approval_id=approval_id,
             decision=decision,
             reviewer=reviewer,
+            audit_repo=self.audit_repo,
         )
 
 
@@ -148,15 +167,16 @@ def get_audit_logger(db: Database | None = None) -> AuditLogger:
 def get_audit_service() -> AuditLogger:
     from ..core.config import get_settings
     settings = get_settings()
+    """FastAPI dependency for obtaining the AuditLogger service."""
     if settings.database_mode.lower() == "firestore":
         from ..storage.firestore_audit_repository import FirestoreAuditRepository
         from ..storage.firestore_approval_repository import FirestoreApprovalRepository
 
+        audit_repo = FirestoreAuditRepository()
         return AuditLogger(
-            audit_repo=FirestoreAuditRepository(),
-            approval_repo=FirestoreApprovalRepository(),
+            audit_repo=audit_repo,
+            approval_repo=FirestoreApprovalRepository(client=audit_repo.client, audit_repo=audit_repo),
         )
-    """FastAPI dependency for obtaining the AuditLogger service."""
     return get_audit_logger()
 
 

@@ -1,8 +1,17 @@
 rules_version = '2';
+
+// AgentShield Firestore Security Rules.
+//
+// Browsers never write security state. Approval decisions, audit records,
+// chain state and rate-limit counters are written only by the FastAPI
+// backend through the Firebase Admin SDK, which bypasses these rules; the
+// backend therefore enforces authentication, roles and state transitions
+// itself. These rules make the client SDK read-only for verified users.
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() {
-      return request.auth != null;
+      return request.auth != null
+        && request.auth.token.email_verified == true;
     }
 
     function role() {
@@ -13,10 +22,6 @@ service cloud.firestore {
 
     function isAdmin() {
       return role() == "ADMIN";
-    }
-
-    function isReviewer() {
-      return role() == "REVIEWER";
     }
 
     match /users/{uid} {
@@ -32,7 +37,12 @@ service cloud.firestore {
 
     match /audit_events/{eventId} {
       allow read: if signedIn();
-      allow create, update, delete: if false;
+      allow write: if false;
+    }
+
+    match /audit_transitions/{eventId} {
+      allow read: if signedIn();
+      allow write: if false;
     }
 
     match /audit_checkpoints/{checkpointId} {
@@ -40,11 +50,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Decisions go through POST /api/v1/approvals/{id}/decision only.
     match /approvals/{approvalId} {
       allow read: if signedIn();
-      allow create: if false;
-      allow update: if isAdmin() || isReviewer();
-      allow delete: if false;
+      allow write: if false;
     }
 
     match /policies/{policyId} {
@@ -57,6 +66,8 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // audit_sequence_v2, audit_event_status, rate_limits and anything else:
+    // backend-only.
     match /{document=**} {
       allow read, write: if false;
     }

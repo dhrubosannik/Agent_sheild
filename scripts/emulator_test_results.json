@@ -7,17 +7,17 @@
   {
     "name": "Auth Registration (ADMIN)",
     "passed": true,
-    "details": "UID: NwpsGjHQxR443iCiSWP6ToOVBWQ4, Email: admin_1795526715@agentshield.test"
+    "details": "UID: u9uv9Q8I1xVy3FhGAYMrlYr65a5o, Email: admin_1795864302@agentshield.test"
   },
   {
     "name": "Auth Registration (REVIEWER)",
     "passed": true,
-    "details": "UID: pTBw0WjDCagmcevVn3OEg42pZmBt, Email: reviewer_1795526715@agentshield.test"
+    "details": "UID: azyv109CGEudQaYfETjRhA7rpwxH, Email: reviewer_1795864302@agentshield.test"
   },
   {
     "name": "Auth Registration (VIEWER)",
     "passed": true,
-    "details": "UID: UZ5Ue8NqBBnNCqJb1grxOZuF8DEv, Email: viewer_1795526715@agentshield.test"
+    "details": "UID: xr1l28zEe0dXkrqsDFzWIeCbxD4f, Email: viewer_1795864302@agentshield.test"
   },
   {
     "name": "Auth Login & Token Refresh (ADMIN)",
@@ -37,7 +37,7 @@
   {
     "name": "Auth Password Reset Flow",
     "passed": true,
-    "details": "OOB Code sent for admin_1795526715@agentshield.test"
+    "details": "OOB Code sent for admin_1795864302@agentshield.test"
   },
   {
     "name": "Backend Token Verification (ADMIN)",
@@ -67,12 +67,12 @@
   {
     "name": "Role Auth: ADMIN on Admin endpoint",
     "passed": true,
-    "details": "Allowed UID NwpsGjHQxR443iCiSWP6ToOVBWQ4"
+    "details": "Allowed UID u9uv9Q8I1xVy3FhGAYMrlYr65a5o"
   },
   {
     "name": "Role Auth: REVIEWER on Reviewer endpoint",
     "passed": true,
-    "details": "Allowed UID pTBw0WjDCagmcevVn3OEg42pZmBt"
+    "details": "Allowed UID azyv109CGEudQaYfETjRhA7rpwxH"
   },
   {
     "name": "Role Auth: REVIEWER blocked from Admin endpoint",
@@ -87,7 +87,7 @@
   {
     "name": "Role Auth: VIEWER on Read endpoint",
     "passed": true,
-    "details": "Allowed UID UZ5Ue8NqBBnNCqJb1grxOZuF8DEv"
+    "details": "Allowed UID xr1l28zEe0dXkrqsDFzWIeCbxD4f"
   },
   {
     "name": "Firestore Audit Chain Creation",
@@ -97,12 +97,12 @@
   {
     "name": "Firestore Hash-Chain Verification",
     "passed": true,
-    "details": "Integrity check: VALID"
+    "details": "Integrity check: VALID (3 v2 records)"
   },
   {
     "name": "Firestore Approval Creation & Read",
     "passed": true,
-    "details": "Approval ID: test-apr-1795526715"
+    "details": "Approval ID: test-apr-1795864302"
   },
   {
     "name": "Firestore Approval Decision Update",

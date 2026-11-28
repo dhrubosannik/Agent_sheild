@@ -5,7 +5,8 @@ import sqlite3
 from typing import Any
 
 from ..models.approval import Approval
-from ..models.enums import ApprovalStatus, DestinationClass
+from ..models.audit_event import AuditEvent
+from ..models.enums import ApprovalStatus, DestinationClass, ExecutionStatus, SecurityDecision
 from .database import Database, get_database
 
 
@@ -90,87 +91,113 @@ class ApprovalRepository:
                 return None
             return self._row_to_approval(row)
 
+    def list_approvals_page(
+        self,
+        status: ApprovalStatus | str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        cursor: str | None = None,
+    ) -> tuple[list[Approval], int, str | None]:
+        """Lists approvals newest first; ``cursor`` is the last approval_id of
+        the previous page (keyset pagination on created_at, approval_id)."""
+        where = ["1=1"]
+        params: list[Any] = []
+        if status is not None:
+            where.append("status = ?")
+            params.append(status.value if isinstance(status, ApprovalStatus) else str(status))
+        limit = max(1, min(int(limit), 100))
+        with self.db.connection() as conn:
+            total = conn.execute(f"SELECT COUNT(*) FROM approvals WHERE {' AND '.join(where)}", params).fetchone()[0]
+            page_where, page_params = list(where), list(params)
+            if cursor:
+                anchor = conn.execute("SELECT created_at FROM approvals WHERE approval_id = ?", (cursor,)).fetchone()
+                if anchor is None:
+                    raise ValueError("Invalid pagination cursor")
+                page_where.append("(created_at < ? OR (created_at = ? AND approval_id < ?))")
+                page_params.extend([anchor["created_at"], anchor["created_at"], cursor])
+                offset = 0
+            rows = conn.execute(
+                f"SELECT * FROM approvals WHERE {' AND '.join(page_where)} "
+                "ORDER BY created_at DESC, approval_id DESC LIMIT ? OFFSET ?",
+                [*page_params, limit, max(0, offset)],
+            ).fetchall()
+            approvals = [self._row_to_approval(r) for r in rows]
+        next_cursor = approvals[-1].approval_id if len(approvals) == limit else None
+        return approvals, total, next_cursor
+
     def list_approvals(
         self,
         status: ApprovalStatus | str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Approval], int]:
-        """Lists approval records with optional status filtering and pagination."""
-        query = "SELECT * FROM approvals WHERE 1=1"
-        count_query = "SELECT COUNT(*) FROM approvals WHERE 1=1"
-        params: list[Any] = []
-
-        if status is not None:
-            stat_val = status.value if isinstance(status, ApprovalStatus) else str(status)
-            query += " AND status = ?"
-            count_query += " AND status = ?"
-            params.append(stat_val)
-
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-        exec_params = list(params)
-        exec_params.extend([max(1, limit), max(0, offset)])
-
-        with self.db.connection() as conn:
-            count_cursor = conn.execute(count_query, params)
-            total = count_cursor.fetchone()[0]
-
-            cursor = conn.execute(query, exec_params)
-            rows = cursor.fetchall()
-            approvals = [self._row_to_approval(r) for r in rows]
-
-        return approvals, total
+        items, total, _ = self.list_approvals_page(status=status, limit=limit, offset=offset)
+        return items, total
 
     def update_decision(
         self,
         approval_id: str,
         decision: ApprovalStatus | str,
         reviewer: str,
+        audit_repo: Any | None = None,
     ) -> Approval:
         """Records an APPROVED or REJECTED decision.
 
-        Ensures only PENDING approvals can be reviewed, preventing duplicate
-        or conflicting transitions.
+        Atomic compare-and-set: the row changes only while it is PENDING, inside
+        one serialized transaction that also appends the APPROVAL_DECISION audit
+        record (when ``audit_repo`` is given), so a decision is never recorded
+        without its audit event or vice versa. Concurrent or repeated decisions
+        raise ApprovalConflictError.
         """
-        target_status = (
-            decision if isinstance(decision, ApprovalStatus) else ApprovalStatus(decision)
-        )
+        target_status = decision if isinstance(decision, ApprovalStatus) else ApprovalStatus(decision)
         if target_status not in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
             raise ValueError(f"Invalid review decision: {target_status}. Must be APPROVED or REJECTED.")
-
+        reviewer_id = reviewer.strip()
+        if not reviewer_id:
+            raise ValueError("Reviewer identity is required.")
         reviewed_at = datetime.now(UTC)
 
-        with self.db.connection() as conn:
-            cursor = conn.execute(
-                "SELECT status FROM approvals WHERE approval_id = ?",
-                (approval_id,),
-            )
-            row = cursor.fetchone()
+        with self.db.write_transaction() as conn:
+            row = conn.execute("SELECT * FROM approvals WHERE approval_id = ?", (approval_id,)).fetchone()
             if row is None:
                 raise ApprovalNotFoundError(f"Approval record '{approval_id}' not found.")
-
-            current_status = row["status"]
-            if current_status != ApprovalStatus.PENDING.value:
-                raise ApprovalConflictError(
-                    f"Approval '{approval_id}' has already been reviewed (current status: {current_status})."
-                )
-
-            conn.execute(
+            cursor = conn.execute(
                 """
                 UPDATE approvals
                 SET status = ?, reviewer = ?, reviewed_at = ?
-                WHERE approval_id = ?
+                WHERE approval_id = ? AND status = ?
                 """,
-                (
-                    target_status.value,
-                    reviewer.strip(),
-                    reviewed_at.isoformat(),
-                    approval_id,
-                ),
+                (target_status.value, reviewer_id, reviewed_at.isoformat(), approval_id, ApprovalStatus.PENDING.value),
             )
-            conn.commit()
+            if cursor.rowcount != 1:
+                raise ApprovalConflictError(
+                    f"Approval '{approval_id}' has already been reviewed (current status: {row['status']})."
+                )
+            approval = self._row_to_approval(row)
+            approval.status = target_status
+            approval.reviewer = reviewer_id
+            approval.reviewed_at = reviewed_at
+            if audit_repo is not None:
+                audit_repo.append(conn, approval_decision_event(approval, reviewer_id, reviewed_at))
+        return approval
 
-        updated = self.get_by_id(approval_id)
-        if updated is None:
-            raise ApprovalNotFoundError(f"Approval record '{approval_id}' not found after update.")
-        return updated
+
+def approval_decision_event(approval: Approval, reviewer: str, reviewed_at: datetime) -> AuditEvent:
+    """Audit record for a human approval decision. Deterministic event_id, so
+    a second decision for the same approval cannot be appended."""
+    return AuditEvent(
+        event_id=f"{approval.approval_id}~decision",
+        timestamp=reviewed_at,
+        tool_name=approval.tool_name,
+        decision=SecurityDecision.REQUIRE_APPROVAL,
+        policy_id="human-approval-decision",
+        reason_codes=[f"APPROVAL_{approval.status.value}"],
+        destination_class=approval.destination_class,
+        data_labels=[],
+        risk_signals=[],
+        payload_fingerprint=None,
+        execution_status=ExecutionStatus.NOT_EXECUTED,
+        actor_uid=reviewer,
+        event_type="APPROVAL_DECISION",
+        related_event_id=approval.event_id,
+    )

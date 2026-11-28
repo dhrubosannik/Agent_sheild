@@ -9,7 +9,14 @@ __pycache__/
 .coverage
 htmlcov/
 .env
+.env.*
+!.env.example
+!.env.*.example
 *service-account*.json
+*firebase-adminsdk*.json
+*-admin.json
+secrets/
+credentials/
 *-credentials*.json
 *signing-key*.pem
 *.log
@@ -27,3 +34,5 @@ data/backups/
 .DS_Store
 .agents/
 skills-lock.json
+*.db-shm
+*.db-wal

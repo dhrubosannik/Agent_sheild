@@ -95,6 +95,22 @@ def evaluate_policy(
                 explanation=f"Action blocked by policy rule '{rule.id}': {rule.description}",
             )
 
+    # Internal / sensitive destinations (loopback, private ranges, link-local,
+    # cloud metadata, internal hostnames) that are not explicitly allowlisted
+    # in ``allowed_internal_destinations`` are blocked (or held for approval)
+    # before any redact/approval/allow rule can permit them.
+    if destination_class == DestinationClass.INTERNAL:
+        internal_decision = policy.defaults.internal_destination
+        return EvaluationDecision(
+            decision=internal_decision,
+            policy_id="internal-destination-boundary",
+            reason_codes=["INTERNAL_DESTINATION", "DEFAULT_POLICY"],
+            explanation=(
+                "Destination is an internal or sensitive network target that is not in "
+                f"allowed_internal_destinations; applying {internal_decision.value}."
+            ),
+        )
+
     # Configured per-value BLOCK actions take precedence over generic
     # redaction/approval rules, while explicit block rules above remain first.
     for protected_value in policy.protected_values:
@@ -213,8 +229,8 @@ def evaluate_policy(
             explanation="Action directed to an unapproved destination without an explicit allow rule.",
         )
 
-    # If destination is approved or internal, and no protected data or blocks
-    if destination_class in (DestinationClass.APPROVED, DestinationClass.INTERNAL):
+    # If destination is approved (INTERNAL was handled above), and no protected data or blocks
+    if destination_class == DestinationClass.APPROVED:
         return EvaluationDecision(
             decision=SecurityDecision.ALLOW,
             policy_id="default-allow-safe",

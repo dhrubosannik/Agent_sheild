@@ -18,29 +18,37 @@ class EventListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    next_cursor: str | None = None
 
 
 @router.get("", response_model=EventListResponse)
 def list_audit_events(
     limit: int = Query(default=50, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=1000),
     decision: SecurityDecision | None = Query(default=None),
-    tool_name: str | None = Query(default=None),
+    tool_name: str | None = Query(default=None, max_length=200),
+    cursor: str | None = Query(default=None, max_length=200),
     audit_logger: AuditLogger = Depends(get_audit_service),
     user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> EventListResponse:
-    """Retrieves paginated audit events with optional filtering by decision or tool name."""
-    items, total = audit_logger.list_events(
-        limit=limit,
-        offset=offset,
-        decision=decision,
-        tool_name=tool_name,
-    )
+    """Paginated DECISION audit events (newest first). Pass ``next_cursor``
+    back as ``cursor`` for the next page."""
+    try:
+        items, total, next_cursor = audit_logger.list_events_page(
+            limit=limit,
+            offset=offset,
+            decision=decision,
+            tool_name=tool_name,
+            cursor=cursor,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return EventListResponse(
         items=items,
         total=total,
         limit=limit,
         offset=offset,
+        next_cursor=next_cursor,
     )
 
 
