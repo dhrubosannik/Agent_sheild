@@ -1,12 +1,15 @@
 """API route for evaluating proposed AI tool calls."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from ..models.evaluation import EvaluationResult
+from ..models.security_event import build_security_event_input
 from ..models.tool_call import ToolCall
 from ..services.audit_logger import AuditLogger, get_audit_service
 from ..services.security_engine import evaluate_tool_call
+from ..storage.firestore_security_event_repository import FirestoreSecurityEventRepository
 from ..core.auth import AuthenticatedUser, UserRole, require_roles
+from .security_events import get_optional_security_event_repository
 
 router = APIRouter(prefix="/api/v1", tags=["Evaluation"])
 
@@ -14,7 +17,11 @@ router = APIRouter(prefix="/api/v1", tags=["Evaluation"])
 @router.post("/evaluate", response_model=EvaluationResult)
 def evaluate_tool_call_endpoint(
     tool_call: ToolCall,
+    request: Request,
     audit_logger: AuditLogger = Depends(get_audit_service),
+    security_event_repo: FirestoreSecurityEventRepository | None = Depends(
+        get_optional_security_event_repository
+    ),
     user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> EvaluationResult:
     """Evaluates a proposed tool call using the deterministic security policy engine.
@@ -31,5 +38,14 @@ def evaluate_tool_call_endpoint(
         requested_action=f"Evaluate tool call '{tool_call.tool_name}'",
         actor_uid=user.uid,
     )
+
+    if security_event_repo is not None:
+        event_input = build_security_event_input(
+            tool_call=tool_call,
+            result=result,
+            user_id=user.uid,
+            correlation_id=request.headers.get("x-correlation-id"),
+        )
+        security_event_repo.create_event(**event_input, idempotent=True)
 
     return result

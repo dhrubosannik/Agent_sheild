@@ -98,3 +98,35 @@ def test_users_collection_rules_deny_client_writes_and_restrict_reads(seeded, fi
         == 403
     )
     assert seeded.http.delete(f"{seeded.firestore_url}/users/{viewer['uid']}", headers=admin_headers).status_code == 403
+
+
+def test_security_events_collection_rules_deny_all_client_writes(seeded, firestore_client) -> None:
+    viewer = seeded.verified_user("rules-se-viewer@agentshield.test")
+    admin = seeded.verified_user("rules-se-admin@agentshield.test", "ADMIN")
+    firestore_client.collection("security_events").document("se-1").set(
+        {"event_id": "se-1", "user_id": viewer["uid"], "decision": "BLOCK", "risk_level": "HIGH"}
+    )
+
+    for token in (viewer["token"], admin["token"]):
+        headers = {"Authorization": f"Bearer {token}"}
+        assert seeded.http.get(f"{seeded.firestore_url}/security_events/se-1", headers=headers).status_code == 200
+        assert (
+            seeded.http.post(
+                f"{seeded.firestore_url}/security_events?documentId=se-client",
+                headers=headers,
+                json=_doc({"event_id": "se-client", "decision": "ALLOW"}),
+            ).status_code
+            == 403
+        )
+        assert (
+            seeded.http.patch(
+                f"{seeded.firestore_url}/security_events/se-1?updateMask.fieldPaths=decision",
+                headers=headers,
+                json=_doc({"decision": "ALLOW"}),
+            ).status_code
+            == 403
+        )
+        assert seeded.http.delete(f"{seeded.firestore_url}/security_events/se-1", headers=headers).status_code == 403
+
+    # Unauthenticated client cannot read or write security_events
+    assert seeded.http.get(f"{seeded.firestore_url}/security_events/se-1").status_code == 403

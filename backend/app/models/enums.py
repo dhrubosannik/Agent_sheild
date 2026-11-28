@@ -39,3 +39,10 @@ class UserStatus(str, Enum):
     ACTIVE = "ACTIVE"
     DISABLED = "DISABLED"
     SUSPENDED = "SUSPENDED"
+
+
+class RiskLevel(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
