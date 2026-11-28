@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     # only when the request names one via the X-AgentShield-Dev-User header.
     dev_auth_identities: str = ""
     dev_auth_allow_remote: bool = False
+    require_approval_separation_of_duties: bool = False
 
     # AGENTSHIELD_ENV_FILE selects the env file (e.g. .env.emulator or
     # .env.cloud) so emulator and cloud configurations stay separate.

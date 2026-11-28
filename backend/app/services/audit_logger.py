@@ -7,6 +7,7 @@ from ..models.approval import Approval
 from ..models.audit_event import AuditEvent
 from ..models.enums import ApprovalStatus, ExecutionStatus, SecurityDecision
 from ..models.evaluation import EvaluationResult
+from ..models.security_event import derive_risk_level
 from ..storage.approval_repository import ApprovalRepository
 from ..storage.audit_repository import AuditRepository
 from ..storage.database import Database, get_database
@@ -36,6 +37,8 @@ class AuditLogger:
         tool_name: str = "",
         requested_action: str = "",
         actor_uid: str | None = None,
+        agent_id: str | None = None,
+        correlation_id: str | None = None,
     ) -> AuditEvent:
         """Persists an AuditEvent record from an EvaluationResult.
 
@@ -63,14 +66,35 @@ class AuditLogger:
 
         # If approval is required, create a corresponding Approval record
         if evaluation_result.decision == SecurityDecision.REQUIRE_APPROVAL:
+            now = datetime.now(UTC)
+            resolved_agent = (
+                agent_id.strip()
+                if isinstance(agent_id, str) and agent_id.strip()
+                else "default-agent"
+            )
+            resolved_corr = (
+                correlation_id.strip()
+                if isinstance(correlation_id, str) and correlation_id.strip()
+                else evaluation_result.event_id
+            )
             approval = Approval(
                 approval_id=f"apr-{evaluation_result.event_id}",
                 event_id=evaluation_result.event_id,
+                user_id=actor_uid or "system",
+                agent_id=resolved_agent[:128],
                 tool_name=tool_name or "unknown_tool",
                 requested_action=requested_action or f"Execute tool '{tool_name}'",
                 destination_class=evaluation_result.destination_class,
+                risk_level=derive_risk_level(evaluation_result),
                 status=ApprovalStatus.PENDING,
-                created_at=datetime.now(UTC),
+                requested_at=now,
+                created_at=now,
+                reviewed_by=None,
+                reviewer=None,
+                reviewed_at=None,
+                decision_reason=None,
+                correlation_id=resolved_corr[:128],
+                version=1,
             )
             # Avoid duplicate approval insertion if event already exists
             existing = self.approval_repo.get_by_event_id(evaluation_result.event_id)
@@ -141,6 +165,9 @@ class AuditLogger:
         approval_id: str,
         decision: ApprovalStatus | str,
         reviewer: str,
+        *,
+        decision_reason: str | None = None,
+        enforce_separation_of_duties: bool = False,
     ) -> Approval:
         """Records a decision and its APPROVAL_DECISION audit record atomically."""
         return self.approval_repo.update_decision(
@@ -148,6 +175,8 @@ class AuditLogger:
             decision=decision,
             reviewer=reviewer,
             audit_repo=self.audit_repo,
+            decision_reason=decision_reason,
+            enforce_separation_of_duties=enforce_separation_of_duties,
         )
 
 

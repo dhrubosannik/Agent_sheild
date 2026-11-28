@@ -93,3 +93,72 @@ def test_cursor_pagination_in_firestore(emulator, api) -> None:
     assert pages == 3 and len(seen) == len(set(seen)) == 7
     approvals = api.get("/api/v1/approvals", headers=_h(admin), params={"status": "PENDING", "limit": 4}).json()
     assert approvals["total"] == 7 and len(approvals["items"]) == 4 and approvals["next_cursor"]
+
+
+def test_approve_reject_version_and_pending_endpoints_in_emulator(emulator, api, firestore_client) -> None:
+    admin = emulator.verified_user("apr-v2-admin@agentshield.test", "ADMIN")
+    reviewer = emulator.verified_user("apr-v2-reviewer@agentshield.test", "REVIEWER")
+    viewer = emulator.verified_user("apr-v2-viewer@agentshield.test")
+
+    # Create two pending approvals via /api/v1/evaluate
+    apr_ids = []
+    for i in range(2):
+        res = api.post(
+            "/api/v1/evaluate",
+            headers={**_h(viewer), "X-Correlation-ID": f"corr-apr-emu-{i}"},
+            json={
+                "tool_name": "export_file",
+                "arguments": {"to": "ops@external.example.net", "filename": f"emu-{i}.csv"},
+                "context": {"agent_id": "emu-agent"},
+            },
+        )
+        assert res.status_code == 200
+        apr_ids.append(f"apr-{res.json()['event_id']}")
+
+    # Verify /api/v1/approvals/pending and Firestore document schema
+    pending = api.get("/api/v1/approvals/pending", headers=_h(viewer))
+    assert pending.status_code == 200
+    assert pending.json()["total"] == 2
+    snap = firestore_client.collection("approvals").document(apr_ids[0]).get().to_dict()
+    assert snap["user_id"] == viewer["uid"]
+    assert snap["agent_id"] == "emu-agent"
+    assert snap["status"] == "PENDING"
+    assert snap["version"] == 1
+    assert snap["correlation_id"] == "corr-apr-emu-0"
+
+    # Viewer cannot approve or reject
+    assert api.post(f"/api/v1/approvals/{apr_ids[0]}/approve", headers=_h(viewer)).status_code == 403
+    assert api.post(f"/api/v1/approvals/{apr_ids[0]}/reject", headers=_h(viewer)).status_code == 403
+
+    # Reviewer approves first request; version increments to 2
+    approved = api.post(
+        f"/api/v1/approvals/{apr_ids[0]}/approve",
+        headers=_h(reviewer),
+        json={"decision_reason": "Approved in emulator"},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "APPROVED"
+    assert approved.json()["reviewed_by"] == reviewer["uid"]
+    assert approved.json()["version"] == 2
+    assert approved.json()["decision_reason"] == "Approved in emulator"
+
+    # Duplicate decision rejected with 409; version stays 2
+    assert api.post(f"/api/v1/approvals/{apr_ids[0]}/reject", headers=_h(admin)).status_code == 409
+    assert firestore_client.collection("approvals").document(apr_ids[0]).get().to_dict()["version"] == 2
+
+    # Admin rejects second request
+    rejected = api.post(
+        f"/api/v1/approvals/{apr_ids[1]}/reject",
+        headers=_h(admin),
+        json={"decision_reason": "Rejected in emulator"},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "REJECTED"
+    assert rejected.json()["reviewed_by"] == admin["uid"]
+    assert rejected.json()["version"] == 2
+
+    # Verify audit chain includes both APPROVAL_DECISION records and remains valid
+    repo, report = _chain(firestore_client)
+    decisions = [r for r in repo.export_chain_records() if r.get("event_type") == "APPROVAL_DECISION"]
+    assert len(decisions) == 2
+    assert report["verified"]["valid"] is True, report

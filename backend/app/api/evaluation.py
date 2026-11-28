@@ -32,11 +32,18 @@ def evaluate_tool_call_endpoint(
     result = evaluate_tool_call(tool_call)
 
     # Persist the evaluation result to the audit log
+    context = tool_call.context or {}
+    raw_agent_id = context.get("agent_id")
+    agent_id = raw_agent_id.strip() if isinstance(raw_agent_id, str) and raw_agent_id.strip() else "default-agent"
+    correlation_id = request.headers.get("x-correlation-id") or str(tool_call.request_id)
+
     audit_logger.log_event(
         evaluation_result=result,
         tool_name=tool_call.tool_name,
         requested_action=f"Evaluate tool call '{tool_call.tool_name}'",
         actor_uid=user.uid,
+        agent_id=agent_id,
+        correlation_id=correlation_id,
     )
 
     if security_event_repo is not None:
@@ -44,7 +51,7 @@ def evaluate_tool_call_endpoint(
             tool_call=tool_call,
             result=result,
             user_id=user.uid,
-            correlation_id=request.headers.get("x-correlation-id"),
+            correlation_id=correlation_id,
         )
         security_event_repo.create_event(**event_input, idempotent=True)
 

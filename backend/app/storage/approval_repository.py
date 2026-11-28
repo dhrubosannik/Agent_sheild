@@ -6,8 +6,18 @@ from typing import Any
 
 from ..models.approval import Approval
 from ..models.audit_event import AuditEvent
-from ..models.enums import ApprovalStatus, DestinationClass, ExecutionStatus, SecurityDecision
+from ..models.enums import (
+    ApprovalStatus,
+    DestinationClass,
+    ExecutionStatus,
+    RiskLevel,
+    SecurityDecision,
+)
 from .database import Database, get_database
+
+VALID_DECISION_TARGETS = frozenset(
+    {ApprovalStatus.APPROVED, ApprovalStatus.REJECTED, ApprovalStatus.EXPIRED}
+)
 
 
 class ApprovalNotFoundError(Exception):
@@ -18,6 +28,14 @@ class ApprovalConflictError(Exception):
     """Raised when an approval is not in PENDING state or has already been reviewed."""
 
 
+class ApprovalAlreadyExistsError(ApprovalConflictError):
+    """Raised when attempting to create an approval with an existing approval_id."""
+
+
+class ApprovalUnauthorizedError(PermissionError):
+    """Raised when separation of duties forbids self-approval/self-review."""
+
+
 class ApprovalRepository:
     """Handles persistence and review transitions for Approval records."""
 
@@ -25,45 +43,72 @@ class ApprovalRepository:
         self.db = db or get_database()
 
     def _row_to_approval(self, row: sqlite3.Row) -> Approval:
+        keys = set(row.keys())
         created_at = datetime.fromisoformat(row["created_at"])
-        reviewed_at = (
-            datetime.fromisoformat(row["reviewed_at"]) if row["reviewed_at"] else None
-        )
+        requested_raw = row["requested_at"] if "requested_at" in keys else None
+        requested_at = datetime.fromisoformat(requested_raw) if requested_raw else created_at
+        reviewed_at = datetime.fromisoformat(row["reviewed_at"]) if row["reviewed_at"] else None
+        reviewed_by = row["reviewed_by"] if "reviewed_by" in keys and row["reviewed_by"] else row["reviewer"]
 
         return Approval(
             approval_id=row["approval_id"],
             event_id=row["event_id"],
+            user_id=(row["user_id"] if "user_id" in keys and row["user_id"] else "system"),
+            agent_id=(row["agent_id"] if "agent_id" in keys and row["agent_id"] else "default-agent"),
             tool_name=row["tool_name"],
             requested_action=row["requested_action"],
             destination_class=DestinationClass(row["destination_class"]),
+            risk_level=RiskLevel(row["risk_level"]) if "risk_level" in keys and row["risk_level"] else RiskLevel.MEDIUM,
             status=ApprovalStatus(row["status"]),
+            requested_at=requested_at,
             created_at=created_at,
-            reviewer=row["reviewer"],
+            reviewed_by=reviewed_by,
+            reviewer=reviewed_by,
             reviewed_at=reviewed_at,
+            decision_reason=row["decision_reason"] if "decision_reason" in keys else None,
+            correlation_id=(row["correlation_id"] if "correlation_id" in keys and row["correlation_id"] else row["event_id"]),
+            version=int(row["version"]) if "version" in keys and row["version"] is not None else 1,
         )
 
     def create(self, approval: Approval) -> Approval:
-        """Creates a new approval record in PENDING state."""
+        """Creates a new approval record in PENDING state without overwriting existing records."""
+        if approval.status != ApprovalStatus.PENDING:
+            raise ValueError("New approvals must start in PENDING status.")
+        requested_ts = (approval.requested_at or approval.created_at or datetime.now(UTC)).isoformat()
         with self.db.connection() as conn:
-            conn.execute(
-                """
-                INSERT INTO approvals (
-                    approval_id, event_id, tool_name, requested_action,
-                    destination_class, status, created_at, reviewer, reviewed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    approval.approval_id,
-                    approval.event_id,
-                    approval.tool_name,
-                    approval.requested_action,
-                    approval.destination_class.value,
-                    approval.status.value,
-                    approval.created_at.isoformat(),
-                    approval.reviewer,
-                    approval.reviewed_at.isoformat() if approval.reviewed_at else None,
-                ),
-            )
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO approvals (
+                        approval_id, event_id, user_id, agent_id, tool_name, requested_action,
+                        destination_class, risk_level, status, requested_at, created_at,
+                        reviewed_by, reviewer, reviewed_at, decision_reason, correlation_id, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        approval.approval_id,
+                        approval.event_id,
+                        approval.user_id,
+                        approval.agent_id,
+                        approval.tool_name,
+                        approval.requested_action,
+                        approval.destination_class.value,
+                        approval.risk_level.value,
+                        approval.status.value,
+                        requested_ts,
+                        requested_ts,
+                        approval.reviewed_by,
+                        approval.reviewer,
+                        approval.reviewed_at.isoformat() if approval.reviewed_at else None,
+                        approval.decision_reason,
+                        approval.correlation_id,
+                        approval.version,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ApprovalAlreadyExistsError(
+                    f"Approval '{approval.approval_id}' already exists."
+                ) from exc
             conn.commit()
         return approval
 
@@ -140,46 +185,70 @@ class ApprovalRepository:
         decision: ApprovalStatus | str,
         reviewer: str,
         audit_repo: Any | None = None,
+        *,
+        decision_reason: str | None = None,
+        enforce_separation_of_duties: bool = False,
     ) -> Approval:
-        """Records an APPROVED or REJECTED decision.
-
-        Atomic compare-and-set: the row changes only while it is PENDING, inside
-        one serialized transaction that also appends the APPROVAL_DECISION audit
-        record (when ``audit_repo`` is given), so a decision is never recorded
-        without its audit event or vice versa. Concurrent or repeated decisions
-        raise ApprovalConflictError.
-        """
+        """Records an APPROVED, REJECTED, or EXPIRED decision atomically."""
         target_status = decision if isinstance(decision, ApprovalStatus) else ApprovalStatus(decision)
-        if target_status not in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
-            raise ValueError(f"Invalid review decision: {target_status}. Must be APPROVED or REJECTED.")
+        if target_status not in VALID_DECISION_TARGETS:
+            raise ValueError(
+                f"Invalid review decision: {target_status}. Must be APPROVED, REJECTED, or EXPIRED."
+            )
         reviewer_id = reviewer.strip()
         if not reviewer_id:
             raise ValueError("Reviewer identity is required.")
+        clean_reason = decision_reason.strip() if isinstance(decision_reason, str) and decision_reason.strip() else None
         reviewed_at = datetime.now(UTC)
 
         with self.db.write_transaction() as conn:
             row = conn.execute("SELECT * FROM approvals WHERE approval_id = ?", (approval_id,)).fetchone()
             if row is None:
                 raise ApprovalNotFoundError(f"Approval record '{approval_id}' not found.")
+            existing = self._row_to_approval(row)
+            if existing.status != ApprovalStatus.PENDING:
+                raise ApprovalConflictError(
+                    f"Approval '{approval_id}' has already been reviewed (current status: {existing.status.value})."
+                )
+            if (
+                enforce_separation_of_duties
+                and target_status in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED)
+                and existing.user_id == reviewer_id
+            ):
+                raise ApprovalUnauthorizedError("Users cannot approve or reject their own request.")
+
+            next_version = existing.version + 1
             cursor = conn.execute(
                 """
                 UPDATE approvals
-                SET status = ?, reviewer = ?, reviewed_at = ?
-                WHERE approval_id = ? AND status = ?
+                SET status = ?, reviewed_by = ?, reviewer = ?, reviewed_at = ?, decision_reason = ?, version = ?
+                WHERE approval_id = ? AND status = ? AND version = ?
                 """,
-                (target_status.value, reviewer_id, reviewed_at.isoformat(), approval_id, ApprovalStatus.PENDING.value),
+                (
+                    target_status.value,
+                    reviewer_id,
+                    reviewer_id,
+                    reviewed_at.isoformat(),
+                    clean_reason,
+                    next_version,
+                    approval_id,
+                    ApprovalStatus.PENDING.value,
+                    existing.version,
+                ),
             )
             if cursor.rowcount != 1:
                 raise ApprovalConflictError(
                     f"Approval '{approval_id}' has already been reviewed (current status: {row['status']})."
                 )
-            approval = self._row_to_approval(row)
-            approval.status = target_status
-            approval.reviewer = reviewer_id
-            approval.reviewed_at = reviewed_at
+            existing.status = target_status
+            existing.reviewed_by = reviewer_id
+            existing.reviewer = reviewer_id
+            existing.reviewed_at = reviewed_at
+            existing.decision_reason = clean_reason
+            existing.version = next_version
             if audit_repo is not None:
-                audit_repo.append(conn, approval_decision_event(approval, reviewer_id, reviewed_at))
-        return approval
+                audit_repo.append(conn, approval_decision_event(existing, reviewer_id, reviewed_at))
+        return existing
 
 
 def approval_decision_event(approval: Approval, reviewer: str, reviewed_at: datetime) -> AuditEvent:

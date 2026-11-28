@@ -140,6 +140,20 @@ class Database:
             if name not in audit_columns:
                 conn.execute(f"ALTER TABLE audit_events ADD COLUMN {name} {definition}")
 
+        approval_columns = {row[1] for row in conn.execute("PRAGMA table_info(approvals)")}
+        for name, definition in {
+            "user_id": "TEXT DEFAULT 'system'",
+            "agent_id": "TEXT DEFAULT 'default-agent'",
+            "risk_level": "TEXT DEFAULT 'MEDIUM'",
+            "requested_at": "TEXT",
+            "reviewed_by": "TEXT",
+            "decision_reason": "TEXT",
+            "correlation_id": "TEXT DEFAULT 'unknown'",
+            "version": "INTEGER DEFAULT 1",
+        }.items():
+            if name not in approval_columns:
+                conn.execute(f"ALTER TABLE approvals ADD COLUMN {name} {definition}")
+
         self._record_migration(conn)
         _exec_statements(conn, V2_SCHEMA_SQL)
 
