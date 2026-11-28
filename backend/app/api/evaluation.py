@@ -2,13 +2,16 @@
 
 from fastapi import APIRouter, Depends, Request
 
+from ..core.policy_loader import load_active_policy
 from ..models.evaluation import EvaluationResult
 from ..models.security_event import build_security_event_input
 from ..models.tool_call import ToolCall
 from ..services.audit_logger import AuditLogger, get_audit_service
 from ..services.security_engine import evaluate_tool_call
+from ..storage.firestore_policy_repository import FirestorePolicyRepository
 from ..storage.firestore_security_event_repository import FirestoreSecurityEventRepository
 from ..core.auth import AuthenticatedUser, UserRole, require_roles
+from .policies import get_optional_policy_repository
 from .security_events import get_optional_security_event_repository
 
 router = APIRouter(prefix="/api/v1", tags=["Evaluation"])
@@ -22,6 +25,9 @@ def evaluate_tool_call_endpoint(
     security_event_repo: FirestoreSecurityEventRepository | None = Depends(
         get_optional_security_event_repository
     ),
+    policy_repo: FirestorePolicyRepository | None = Depends(
+        get_optional_policy_repository
+    ),
     user: AuthenticatedUser = Depends(require_roles(UserRole.ADMIN, UserRole.REVIEWER, UserRole.VIEWER)),
 ) -> EvaluationResult:
     """Evaluates a proposed tool call using the deterministic security policy engine.
@@ -29,7 +35,8 @@ def evaluate_tool_call_endpoint(
     CRITICAL: This endpoint strictly evaluates proposed arguments against security policies.
     It DOES NOT execute the underlying tool. Tool execution is handled by the SDK wrapper.
     """
-    result = evaluate_tool_call(tool_call)
+    active_policy = load_active_policy(policy_repo=policy_repo) if policy_repo is not None else None
+    result = evaluate_tool_call(tool_call, policy=active_policy)
 
     # Persist the evaluation result to the audit log
     context = tool_call.context or {}

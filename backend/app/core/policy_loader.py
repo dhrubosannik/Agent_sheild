@@ -53,3 +53,22 @@ def load_policy(path: str | os.PathLike[str] | None = None) -> PolicyConfigurati
         raise PolicyValidationError("Policy configuration contains duplicate rule IDs")
 
     return policy
+
+
+def load_active_policy(policy_repo: Any | None = None) -> PolicyConfiguration:
+    """Loads the base YAML policy and merges enabled Firestore policies when active."""
+    base_policy = load_policy()
+    if policy_repo is None:
+        from .config import get_settings
+
+        settings = get_settings()
+        if settings.database_mode.lower() != "firestore":
+            return base_policy
+        from ..storage.firestore_policy_repository import FirestorePolicyRepository
+
+        policy_repo = FirestorePolicyRepository()
+
+    from ..models.policy import merge_policies_into_configuration
+
+    stored = policy_repo.list_enabled_policies()
+    return merge_policies_into_configuration(base_policy, stored)

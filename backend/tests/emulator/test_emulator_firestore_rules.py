@@ -130,3 +130,49 @@ def test_security_events_collection_rules_deny_all_client_writes(seeded, firesto
 
     # Unauthenticated client cannot read or write security_events
     assert seeded.http.get(f"{seeded.firestore_url}/security_events/se-1").status_code == 403
+
+
+def test_policies_collection_rules_deny_all_client_writes(seeded, firestore_client) -> None:
+    viewer = seeded.verified_user("rules-pol-viewer@agentshield.test")
+    admin = seeded.verified_user("rules-pol-admin@agentshield.test", "ADMIN")
+    firestore_client.collection("policies").document("POLICY_RULES_1").set(
+        {"policy_id": "POLICY_RULES_1", "name": "Test", "enabled": True, "priority": 1, "action": "BLOCK"}
+    )
+    firestore_client.collection("policies").document("POLICY_RULES_1").collection("history").document("000001").set(
+        {"policy_id": "POLICY_RULES_1", "version": 1, "change_type": "CREATE"}
+    )
+
+    viewer_h = {"Authorization": f"Bearer {viewer['token']}"}
+    admin_h = {"Authorization": f"Bearer {admin['token']}"}
+
+    # Verified users can read policies; only admin can read history
+    assert seeded.http.get(f"{seeded.firestore_url}/policies/POLICY_RULES_1", headers=viewer_h).status_code == 200
+    assert seeded.http.get(f"{seeded.firestore_url}/policies/POLICY_RULES_1/history/000001", headers=viewer_h).status_code == 403
+    assert seeded.http.get(f"{seeded.firestore_url}/policies/POLICY_RULES_1/history/000001", headers=admin_h).status_code == 200
+
+    # Neither viewer nor admin client SDK can create, update, or delete policies or history
+    for headers in (viewer_h, admin_h):
+        assert (
+            seeded.http.post(
+                f"{seeded.firestore_url}/policies?documentId=POLICY_CLIENT",
+                headers=headers,
+                json=_doc({"policy_id": "POLICY_CLIENT", "action": "ALLOW"}),
+            ).status_code
+            == 403
+        )
+        assert (
+            seeded.http.patch(
+                f"{seeded.firestore_url}/policies/POLICY_RULES_1?updateMask.fieldPaths=enabled",
+                headers=headers,
+                json=_doc({"name": "Tampered"}),
+            ).status_code
+            == 403
+        )
+        assert seeded.http.delete(f"{seeded.firestore_url}/policies/POLICY_RULES_1", headers=headers).status_code == 403
+        assert (
+            seeded.http.delete(
+                f"{seeded.firestore_url}/policies/POLICY_RULES_1/history/000001",
+                headers=headers,
+            ).status_code
+            == 403
+        )

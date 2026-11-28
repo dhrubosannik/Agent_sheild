@@ -9,6 +9,12 @@ from .approval_repository import (
 )
 from .audit_repository import AuditRepository
 from .database import Database, get_database, reset_database_singleton
+from .firestore_policy_repository import (
+    FirestorePolicyRepository,
+    PolicyAlreadyExistsError,
+    PolicyNotFoundError,
+    StoredPolicyValidationError,
+)
 from .firestore_security_event_repository import (
     FirestoreSecurityEventRepository,
     SecurityEventConflictError,
@@ -32,11 +38,15 @@ __all__ = [
     "ApprovalUnauthorizedError",
     "AuditRepository",
     "Database",
+    "FirestorePolicyRepository",
     "FirestoreSecurityEventRepository",
     "FirestoreUserRepository",
+    "PolicyAlreadyExistsError",
+    "PolicyNotFoundError",
     "SecurityEventConflictError",
     "SecurityEventDuplicateError",
     "SecurityEventValidationError",
+    "StoredPolicyValidationError",
     "UserAlreadyExistsError",
     "UserDisabledError",
     "UserNotFoundError",

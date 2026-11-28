@@ -7,7 +7,7 @@ prompt-injection heuristics, deterministic policy evaluation, and redaction.
 from typing import Any
 import uuid
 
-from ..core.policy_loader import load_policy
+from ..core.policy_loader import load_active_policy
 from ..core.policy_models import PolicyConfiguration
 from ..models.enums import DestinationClass, ExecutionStatus, SecurityDecision
 from ..models.evaluation import EvaluationResult
@@ -44,8 +44,8 @@ def evaluate_tool_call(
     event_id = f"evt-{uuid.uuid4().hex[:12]}"
 
     try:
-        # Load default policy if not provided
-        active_policy = policy if policy is not None else load_policy()
+        # Load active policy configuration (YAML base + enabled Firestore policies) if not provided
+        active_policy = policy if policy is not None else load_active_policy()
 
         # Step 1 & 2: Normalize arguments
         try:

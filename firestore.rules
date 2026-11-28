@@ -59,9 +59,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Policy definitions and versioned audit history are written exclusively by
+    // the FastAPI backend via the Firebase Admin SDK so every mutation enforces
+    // schema/engine validation, monotonic versioning, server timestamps, and
+    // atomic history logging without browser bypass.
     match /policies/{policyId} {
       allow read: if signedIn();
-      allow write: if isAdmin();
+      allow write: if false;
+
+      match /history/{versionId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
     }
 
     match /system_metadata/{document} {
