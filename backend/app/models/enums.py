@@ -27,3 +27,15 @@ class ApprovalStatus(str, Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+
+
+class UserRole(str, Enum):
+    ADMIN = "ADMIN"
+    REVIEWER = "REVIEWER"
+    VIEWER = "VIEWER"
+
+
+class UserStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DISABLED = "DISABLED"
+    SUSPENDED = "SUSPENDED"

@@ -13,6 +13,7 @@ from .api.events import router as events_router
 from .api.health import router as health_router
 from .api.policies import router as policies_router
 from .api.admin import router as admin_router
+from .api.users import router as users_router
 from .core.config import get_settings
 from .storage.database import get_database
 from .core.security_middleware import SecurityHardeningMiddleware
@@ -71,3 +72,4 @@ app.include_router(approvals_router)
 app.include_router(policies_router)
 app.include_router(demo_router)
 app.include_router(admin_router)
+app.include_router(users_router)

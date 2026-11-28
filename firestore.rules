@@ -24,10 +24,13 @@ service cloud.firestore {
       return role() == "ADMIN";
     }
 
+    // User profiles (uid, email, display_name, role, email_verified, status,
+    // created_at, updated_at, last_login_at) are written exclusively by the
+    // FastAPI backend via the Firebase Admin SDK to enforce validation, server
+    // timestamps, and role/status transitions and prevent client privilege escalation.
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create, update: if isAdmin();
-      allow delete: if isAdmin();
+      allow write: if false;
     }
 
     match /security_events/{eventId} {

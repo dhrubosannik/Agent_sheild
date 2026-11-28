@@ -91,4 +91,20 @@ export const api = {
   getPolicy: () => request("/api/v1/policies/current"),
   runDemo: (scenario) =>
     request(`/api/v1/demo/run/${encodeURIComponent(scenario)}`, { method: "POST" }),
+  registerUser: (payload = {}) =>
+    request("/api/v1/users/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  loginUser: (payload = {}) =>
+    request("/api/v1/users/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  syncUser: (payload = {}) =>
+    request("/api/v1/users/sync", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getCurrentUser: () => request("/api/v1/users/me"),
 };

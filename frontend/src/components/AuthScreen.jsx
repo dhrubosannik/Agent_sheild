@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api } from "../api/client";
 import {
   confirmEmailVerification,
   loginWithEmail,
@@ -85,6 +86,11 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
       } else if (mode === "register") {
         const registration = await registerWithEmail(email, password);
         setCurrentUser(registration.user);
+        try {
+          await api.registerUser();
+        } catch (syncError) {
+          console.warn("Failed to initialize Firestore user profile:", syncError);
+        }
         setMode("verify");
         if (registration.verificationEmailSent) {
           setMessage(MESSAGES.verificationSent);
@@ -97,6 +103,16 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
       } else {
         const credential = await loginWithEmail(email, password);
         setCurrentUser(credential.user);
+        try {
+          await api.loginUser();
+        } catch (syncError) {
+          if (syncError?.status === 403 && /disabled|suspended/i.test(String(syncError.message || ""))) {
+            await logoutFirebase();
+            setCurrentUser(null);
+            throw syncError;
+          }
+          console.warn("Failed to synchronize login timestamp:", syncError);
+        }
         if (!credential.user.emailVerified) {
           // Signing in does not send an email; say so accurately.
           setMode("verify");
@@ -124,6 +140,11 @@ export default function AuthScreen({ user: initialUser = null, onVerified = null
       const outcome = await confirmEmailVerification();
       setCurrentUser(outcome.user);
       if (outcome.verified) {
+        try {
+          await api.syncUser();
+        } catch (syncError) {
+          console.warn("Failed to synchronize email verification status:", syncError);
+        }
         setMessage(MESSAGES.verified);
         setMessageType("success");
         if (onVerified) {

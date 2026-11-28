@@ -50,3 +50,51 @@ def test_unverified_user_cannot_read(seeded) -> None:
     headers = {"Authorization": f"Bearer {account['idToken']}"}
     assert seeded.http.get(f"{seeded.firestore_url}/approvals/apr-1", headers=headers).status_code == 403
     assert seeded.http.get(f"{seeded.firestore_url}/approvals/apr-1").status_code == 403
+
+
+def test_users_collection_rules_deny_client_writes_and_restrict_reads(seeded, firestore_client) -> None:
+    viewer = seeded.verified_user("rules-user-viewer@agentshield.test")
+    other = seeded.verified_user("rules-user-other@agentshield.test")
+    admin = seeded.verified_user("rules-user-admin@agentshield.test", "ADMIN")
+
+    for u, role in [(viewer, "VIEWER"), (other, "VIEWER"), (admin, "ADMIN")]:
+        firestore_client.collection("users").document(u["uid"]).set(
+            {"uid": u["uid"], "email": f"{u['uid']}@agentshield.test", "role": role, "status": "ACTIVE"}
+        )
+
+    viewer_headers = {"Authorization": f"Bearer {viewer['token']}"}
+    admin_headers = {"Authorization": f"Bearer {admin['token']}"}
+
+    # Owner can read own profile; cannot read another user's profile
+    assert seeded.http.get(f"{seeded.firestore_url}/users/{viewer['uid']}", headers=viewer_headers).status_code == 200
+    assert seeded.http.get(f"{seeded.firestore_url}/users/{other['uid']}", headers=viewer_headers).status_code == 403
+
+    # Verified admin can read any user profile
+    assert seeded.http.get(f"{seeded.firestore_url}/users/{viewer['uid']}", headers=admin_headers).status_code == 200
+
+    # Neither viewer nor admin client SDK can create, update, or delete users/{uid}
+    assert (
+        seeded.http.patch(
+            f"{seeded.firestore_url}/users/{viewer['uid']}?updateMask.fieldPaths=role",
+            headers=viewer_headers,
+            json=_doc({"role": "ADMIN"}),
+        ).status_code
+        == 403
+    )
+    assert (
+        seeded.http.patch(
+            f"{seeded.firestore_url}/users/{viewer['uid']}?updateMask.fieldPaths=role",
+            headers=admin_headers,
+            json=_doc({"role": "ADMIN"}),
+        ).status_code
+        == 403
+    )
+    assert (
+        seeded.http.post(
+            f"{seeded.firestore_url}/users?documentId=client-created",
+            headers=admin_headers,
+            json=_doc({"uid": "client-created", "role": "ADMIN"}),
+        ).status_code
+        == 403
+    )
+    assert seeded.http.delete(f"{seeded.firestore_url}/users/{viewer['uid']}", headers=admin_headers).status_code == 403

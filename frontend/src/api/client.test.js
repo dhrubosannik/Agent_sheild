@@ -52,4 +52,28 @@ describe("API client token handling", () => {
     expect(JSON.parse(fetchSpy.mock.calls[0][1].body)).toEqual({ decision: "APPROVED" });
     vi.unstubAllGlobals();
   });
+
+  it("user lifecycle requests carry no client-supplied roles or credentials", async () => {
+    vi.resetModules();
+    const fetchSpy = vi.fn(async () => response(200, {}));
+    vi.stubGlobal("fetch", fetchSpy);
+    const { api } = await import("./client");
+    await api.registerUser();
+    await api.loginUser();
+    await api.syncUser();
+    await api.getCurrentUser();
+    expect(fetchSpy.mock.calls.map((c) => [c[0], c[1].method || "GET"])).toEqual([
+      ["/api/v1/users/register", "POST"],
+      ["/api/v1/users/login", "POST"],
+      ["/api/v1/users/sync", "POST"],
+      ["/api/v1/users/me", "GET"],
+    ]);
+    for (const call of fetchSpy.mock.calls.slice(0, 3)) {
+      const body = JSON.parse(call[1].body);
+      expect(body).not.toHaveProperty("role");
+      expect(body).not.toHaveProperty("status");
+      expect(body).not.toHaveProperty("password");
+    }
+    vi.unstubAllGlobals();
+  });
 });

@@ -11,11 +11,11 @@ name one of the explicitly configured ``DEV_AUTH_IDENTITIES`` in the
 production.
 """
 
-from enum import Enum
-from typing import Callable
+from typing import Any, Callable
 
 from fastapi import Header, HTTPException, Request, status
 
+from ..models.enums import UserRole
 from .config import Settings, get_settings
 from .firebase import FirebaseConfigurationError, verify_firebase_id_token
 
@@ -24,17 +24,20 @@ DEV_UID_PREFIX = "dev:"
 LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
-class UserRole(str, Enum):
-    ADMIN = "ADMIN"
-    REVIEWER = "REVIEWER"
-    VIEWER = "VIEWER"
-
-
 class AuthenticatedUser:
-    def __init__(self, uid: str, role: UserRole, email_verified: bool = True) -> None:
+    def __init__(
+        self,
+        uid: str,
+        role: UserRole,
+        email_verified: bool = True,
+        email: str | None = None,
+        display_name: str | None = None,
+    ) -> None:
         self.uid = uid
         self.role = role
         self.email_verified = email_verified
+        self.email = email
+        self.display_name = display_name
 
 
 def parse_dev_identities(raw: str) -> dict[str, UserRole]:
@@ -79,18 +82,8 @@ def _dev_identity(settings: Settings, request: Request | None, dev_user: str | N
     return AuthenticatedUser(uid=f"{DEV_UID_PREFIX}{dev_user.strip()}", role=role, email_verified=True)
 
 
-def get_authenticated_user(
-    request: Request = None,  # type: ignore[assignment]
-    authorization: str | None = Header(default=None),
-    x_agentshield_dev_user: str | None = Header(default=None),
-) -> AuthenticatedUser:
-    settings = get_settings()
-    has_bearer = bool(authorization and authorization.lower().startswith("bearer "))
-
-    if _dev_mode(settings) and not has_bearer:
-        return _dev_identity(settings, request, x_agentshield_dev_user)
-
-    if not has_bearer:
+def _verify_bearer_claims(authorization: str | None) -> dict[str, Any]:
+    if not authorization or not authorization.lower().startswith("bearer "):
         raise _unauthorized("Firebase bearer token is required.")
 
     id_token = authorization.split(" ", 1)[1].strip()
@@ -110,6 +103,50 @@ def get_authenticated_user(
     uid = decoded.get("uid") or decoded.get("sub")
     if not uid:
         raise _unauthorized("Firebase identity is missing.")
+    return decoded
+
+
+def _role_from_claims(decoded: dict[str, Any]) -> UserRole:
+    role_value = decoded.get("role", "VIEWER")
+    try:
+        return UserRole(role_value)
+    except ValueError:
+        return UserRole.VIEWER
+
+
+def get_firebase_session_user(
+    authorization: str | None = Header(default=None),
+) -> AuthenticatedUser:
+    """Verifies a Firebase ID token without requiring email_verified=True.
+
+    Used only for user profile registration, login timestamping, and Auth
+    synchronization; protected operations still require email verification via
+    ``get_authenticated_user`` and ``require_roles``.
+    """
+    decoded = _verify_bearer_claims(authorization)
+    uid = str(decoded.get("uid") or decoded.get("sub"))
+    return AuthenticatedUser(
+        uid=uid,
+        role=_role_from_claims(decoded),
+        email_verified=decoded.get("email_verified") is True,
+        email=decoded.get("email"),
+        display_name=decoded.get("name"),
+    )
+
+
+def get_authenticated_user(
+    request: Request = None,  # type: ignore[assignment]
+    authorization: str | None = Header(default=None),
+    x_agentshield_dev_user: str | None = Header(default=None),
+) -> AuthenticatedUser:
+    settings = get_settings()
+    has_bearer = bool(authorization and authorization.lower().startswith("bearer "))
+
+    if _dev_mode(settings) and not has_bearer:
+        return _dev_identity(settings, request, x_agentshield_dev_user)
+
+    decoded = _verify_bearer_claims(authorization)
+    uid = str(decoded.get("uid") or decoded.get("sub"))
 
     if decoded.get("email_verified") is not True:
         raise HTTPException(
@@ -117,12 +154,13 @@ def get_authenticated_user(
             detail="Email verification is required to access protected operations.",
         )
 
-    role_value = decoded.get("role", "VIEWER")
-    try:
-        role = UserRole(role_value)
-    except ValueError:
-        role = UserRole.VIEWER
-    return AuthenticatedUser(uid=str(uid), role=role, email_verified=True)
+    return AuthenticatedUser(
+        uid=uid,
+        role=_role_from_claims(decoded),
+        email_verified=True,
+        email=decoded.get("email"),
+        display_name=decoded.get("name"),
+    )
 
 
 def require_roles(*allowed_roles: UserRole) -> Callable:
