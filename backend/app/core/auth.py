@@ -16,9 +16,10 @@ class UserRole(str, Enum):
 
 
 class AuthenticatedUser:
-    def __init__(self, uid: str, role: UserRole) -> None:
+    def __init__(self, uid: str, role: UserRole, email_verified: bool = True) -> None:
         self.uid = uid
         self.role = role
+        self.email_verified = email_verified
 
 
 def get_authenticated_user(
@@ -29,7 +30,7 @@ def get_authenticated_user(
         not settings.firebase_auth_required
         and settings.environment.lower() != "production"
     ):
-        return AuthenticatedUser(uid="local-demo", role=UserRole.ADMIN)
+        return AuthenticatedUser(uid="local-demo", role=UserRole.ADMIN, email_verified=True)
 
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
@@ -64,12 +65,19 @@ def get_authenticated_user(
             detail="Firebase identity is missing.",
         )
 
+    email_verified = bool(decoded.get("email_verified", False))
+    if not email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification is required to access protected operations.",
+        )
+
     role_value = decoded.get("role", "VIEWER")
     try:
         role = UserRole(role_value)
     except ValueError:
         role = UserRole.VIEWER
-    return AuthenticatedUser(uid=str(uid), role=role)
+    return AuthenticatedUser(uid=str(uid), role=role, email_verified=email_verified)
 
 
 def require_roles(*allowed_roles: UserRole) -> Callable:

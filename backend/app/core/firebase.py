@@ -1,5 +1,6 @@
 """Firebase Admin initialization and official token verification."""
 
+import os
 from functools import lru_cache
 from typing import Any
 
@@ -18,6 +19,9 @@ def get_firebase_app() -> Any | None:
     settings = get_settings()
     if not settings.firebase_project_id:
         return None
+
+    if settings.firebase_auth_emulator_host and "FIREBASE_AUTH_EMULATOR_HOST" not in os.environ:
+        os.environ["FIREBASE_AUTH_EMULATOR_HOST"] = settings.firebase_auth_emulator_host
 
     try:
         try:

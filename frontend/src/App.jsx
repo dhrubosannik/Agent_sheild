@@ -106,8 +106,15 @@ export default function App() {
   if (firebaseLoading) {
     return <div className="loading-state">Loading authentication...</div>;
   }
-  if (firebaseConfigured && !firebaseUser) {
-    return <AuthScreen />;
+  if (firebaseConfigured && (!firebaseUser || !firebaseUser.emailVerified)) {
+    return (
+      <AuthScreen
+        user={firebaseUser}
+        onVerified={(verifiedUser) => {
+          setFirebaseUser(verifiedUser || { ...getFirebaseAuth().currentUser, emailVerified: true });
+        }}
+      />
+    );
   }
 
   const handleApproval = async (approval, decision) => {

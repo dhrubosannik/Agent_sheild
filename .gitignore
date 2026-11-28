@@ -25,3 +25,5 @@ build/
 *.backup
 data/backups/
 .DS_Store
+.agents/
+skills-lock.json
