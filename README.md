@@ -83,3 +83,14 @@ Deterministic tool, destination, and protected-data checks are the primary enfor
 ## Dashboard theme
 
 The dashboard includes a reference-style security console with light and dark themes, IBM Plex Mono and Inter typography, and live AgentShield event data.
+
+## Documentation
+
+All project documentation lives in [`docs/`](docs/). Start with the [documentation index](docs/README.md). Key documents:
+
+- [Firebase development guide](docs/FIREBASE_DEVELOPMENT_GUIDE.md): no-Firebase, emulator and shared-cloud modes
+- [Shared Firebase team setup](docs/FIREBASE_SHARED_TEAM_SETUP.md)
+- [Phase 13.2 security remediation report](docs/PHASE_13_2_SECURITY_REMEDIATION_REPORT.md)
+- [Shared Firebase connection report](docs/SHARED_FIREBASE_CONNECTION_REPORT.md)
+- [Remaining risks](docs/REMAINING_RISKS.md)
+- [API documentation](docs/API_DOCUMENTATION.md)

@@ -30,6 +30,13 @@ fi
 #   AGENTSHIELD_PROFILE=cloud    ./scripts/start_agentshield.sh   (shared project, real data)
 PROFILE="${AGENTSHIELD_PROFILE:-none}"
 FRONTEND_SCRIPT="dev"
+# Local profiles: every dashboard request comes from 127.0.0.1, and each demo
+# click triggers ~5 API calls, so the production budget (120/min) is too low
+# for clicking around. Raise it locally unless already configured.
+if [[ "$PROFILE" != "cloud" && -z "${RATE_LIMIT_REQUESTS:-}" ]] \
+   && ! grep -qs '^RATE_LIMIT_REQUESTS=' "${AGENTSHIELD_ENV_FILE:-.env}" ".env.$PROFILE"; then
+  export RATE_LIMIT_REQUESTS=2000
+fi
 case "$PROFILE" in
   none)
     # Explicit local identities (loopback-only, refused in production).
@@ -45,7 +52,7 @@ case "$PROFILE" in
     FRONTEND_SCRIPT="dev:$PROFILE"
     for file in "$AGENTSHIELD_ENV_FILE" "frontend/.env.$PROFILE"; do
       if [[ ! -f "$file" ]]; then
-        echo "Missing $file. Copy it from $file.example and fill it in (see FIREBASE_DEVELOPMENT_GUIDE.md)."
+        echo "Missing $file. Copy it from $file.example and fill it in (see docs/FIREBASE_DEVELOPMENT_GUIDE.md)."
         exit 1
       fi
     done

@@ -50,7 +50,7 @@ MAX_OFFSET = 1000
 # document. Serializing appends inside each process means only appends from
 # different instances contend in Firestore (lock contention on one hot
 # document otherwise causes "Transaction lock timeout" aborts). Throughput is
-# bounded by Firestore's per-document write rate; see REMAINING_RISKS.md.
+# bounded by Firestore's per-document write rate; see docs/REMAINING_RISKS.md.
 APPEND_LOCK = threading.RLock()
 
 
